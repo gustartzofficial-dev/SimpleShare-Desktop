@@ -143,46 +143,15 @@
           <p id="audioSupport"></p>
           <p>
             Only the selected application's process tree is captured. Multiple windows or tabs
-            belonging to that application may share its sound. Displays are video-only in this
-            version. Microphones and whole-system audio are not captured.
+            belonging to that application may share its sound. Displays can capture a separately
+            selected application’s sound. Microphones and whole-system audio are not captured.
           </p>
         </div>
         <p class="version">
           SimpleShare Desktop <span id="version"></span> · Live website, native companion.
         </p>
-        <button id="quit" class="text-button">Quit desktop app</button>
-      </section>
-      <section id="capturePicker" class="capture-picker" hidden>
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">YOU CHOOSE WHAT THEY SEE</p>
-            <h1>Bring a screen along.</h1>
-          </div>
-          <button id="captureCancelX" class="icon-button" aria-label="Cancel screen selection">
-            ×
-          </button>
-        </div>
-        <p class="lede">
-          Choose an application for scoped audio, or a display for the bigger picture.
-        </p>
-        <div class="source-tabs" role="group" aria-label="Capture sources">
-          <button id="windowsTab" class="tab active" aria-pressed="true">Applications</button
-          ><button id="displaysTab" class="tab" aria-pressed="false">Displays</button>
-        </div>
-        <div id="captureSources" class="capture-sources"></div>
-        <div class="capture-footer">
-          <label class="audio-choice"
-            ><input id="captureAudio" type="checkbox" /><span
-              >Include application sound<small id="captureAudioHint"
-                >Choose an application first.</small
-              ></span
-            ></label
-          >
-          <div class="capture-actions">
-            <button id="captureCancel" class="secondary">Cancel</button
-            ><button id="captureConfirm" class="primary" disabled>Go live ↗</button>
-          </div>
-        </div>
+        <button id="diagnostics" class="secondary">Open connection diagnostics</button
+        ><button id="quit" class="text-button">Quit desktop app</button>
       </section>
     </main>
     <section id="compactPanel" class="compact-panel" hidden>

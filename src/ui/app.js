@@ -1,9 +1,6 @@
 'use strict';
 const $ = (id) => document.getElementById(id);
 let state,
-  sourceId = '',
-  sourceType = 'window',
-  requestId = '',
   favoriteKey = '',
   recentKey = '';
 function feedback(message) {
@@ -82,66 +79,6 @@ function roomItem(room, editable) {
   }
   return row;
 }
-function updateSources() {
-  if (!state?.capture) return;
-  const previous = state.capture.sources.find((item) => item.id === sourceId);
-  if (previous && previous.display !== (sourceType === 'screen')) sourceId = '';
-  const sources = state.capture.sources.filter((item) =>
-    sourceType === 'screen' ? item.display : !item.display,
-  );
-  $('captureSources').replaceChildren();
-  for (const source of sources) {
-    const card = button(
-      '',
-      'source-card' + (source.id === sourceId ? ' selected' : ''),
-      () => {
-        sourceId = source.id;
-        updateSources();
-      },
-      'Share ' + source.name,
-    );
-    card.setAttribute('aria-pressed', String(source.id === sourceId));
-    const image = document.createElement('img');
-    image.src = source.thumbnail;
-    image.alt = '';
-    const label = document.createElement('strong');
-    label.textContent = source.name;
-    card.append(image, label);
-    $('captureSources').append(card);
-  }
-  if (!sources.length) {
-    const empty = document.createElement('p');
-    empty.className = 'empty-copy';
-    empty.textContent =
-      sourceType === 'screen'
-        ? 'No displays were returned by Windows.'
-        : 'No application windows are available. Open the app you want to share, cancel, and try again.';
-    $('captureSources').append(empty);
-  }
-  const selected = state.capture.sources.find((item) => item.id === sourceId);
-  $('captureConfirm').disabled = !selected;
-  const supportsAudio = selected?.audio && state.capture.audioRequested;
-  $('captureAudio').disabled = !supportsAudio;
-  if (!supportsAudio) $('captureAudio').checked = false;
-  $('captureAudioHint').textContent = !selected
-    ? 'Choose an application first.'
-    : selected.display
-      ? 'Displays are video-only. Choose an application for scoped sound.'
-      : !state.capture.audioRequested
-        ? 'Enable source audio in the room before sharing.'
-        : !selected.audio
-          ? state.nativeAudioSupported
-            ? 'Scoped audio is unavailable for this window. Choose the application that is playing sound.'
-            : 'Application audio needs Windows build 20348+ on x64. Your screen can still be shared.'
-          : 'Only this application and its child processes. Other apps stay private.';
-  for (const [id, type] of [
-    ['windowsTab', 'window'],
-    ['displaysTab', 'screen'],
-  ]) {
-    $(id).classList.toggle('active', type === sourceType);
-    $(id).setAttribute('aria-pressed', String(type === sourceType));
-  }
-}
 function render(value) {
   if (!value) return;
   state = value;
@@ -150,11 +87,10 @@ function render(value) {
   $('sidebar').hidden = state.compact;
   $('localContent').hidden = state.compact;
   $('compactPanel').hidden = !state.compact;
-  $('loading').hidden = !state.loading || Boolean(state.capture) || Boolean(state.overlay);
-  $('loadError').hidden = !state.loadError || Boolean(state.capture) || Boolean(state.overlay);
+  $('loading').hidden = !state.loading || Boolean(state.overlay);
+  $('loadError').hidden = !state.loadError || Boolean(state.overlay);
   $('loadErrorText').textContent = state.loadError;
-  $('capturePicker').hidden = !state.capture;
-  $('preferences').hidden = state.overlay !== 'preferences' || Boolean(state.capture);
+  $('preferences').hidden = state.overlay !== 'preferences';
   $('windowTitle').textContent = state.snapshot?.room
     ? state.snapshot.title
     : 'Your people, a little closer.';
@@ -215,14 +151,6 @@ function render(value) {
     : 'This device supports video capture. Scoped application audio requires Windows x64, build 20348 or newer.';
   $('version').textContent = state.version;
   if (state.notice) feedback(state.notice);
-  if (state.capture && requestId !== state.capture.id) {
-    requestId = state.capture.id;
-    sourceId = '';
-    sourceType = 'window';
-    $('captureAudio').checked = false;
-    updateSources();
-  }
-  if (!state.capture) requestId = '';
 }
 function showPreview(data) {
   $('localPreview').hidden = !data;
@@ -257,25 +185,12 @@ $('quit').addEventListener('click', () => command('quit'));
 $('retry').addEventListener('click', () => command('retry'));
 $('compactStop').addEventListener('click', () => command('room-action', 'stop'));
 $('compactShare').addEventListener('click', () => command('room-action', 'share'));
-$('windowsTab').addEventListener('click', () => {
-  sourceType = 'window';
-  updateSources();
-});
-$('displaysTab').addEventListener('click', () => {
-  sourceType = 'screen';
-  updateSources();
-});
-for (const id of ['captureCancel', 'captureCancelX'])
-  $(id).addEventListener('click', () => command('capture-cancel'));
-$('captureConfirm').addEventListener('click', () =>
-  command('capture-select', { requestId, sourceId, audio: $('captureAudio').checked }),
-);
 $('feedbackClose').addEventListener('click', () => {
   feedback('');
   command('dismiss-notice');
 });
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape' && state?.capture) command('capture-cancel');
-  else if (event.key === 'Escape' && state?.overlay) command('preferences');
+  if (event.key === 'Escape' && state?.overlay) command('preferences');
 });
+$('diagnostics').addEventListener('click', () => command('diagnostics'));
 command('ready');

@@ -3,6 +3,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('__simpleShareNative', {
   takeGrant: () => ipcRenderer.invoke('site:grant'),
   startAudio: (id) => ipcRenderer.invoke('site:audio-start', id),
+  report: (type, detail, warning = false) =>
+    ipcRenderer.send('site:diagnostic', { type, detail, warning }),
   stopAudio: (id) => ipcRenderer.send('site:audio-stop', id),
   onAudio: (callback) => {
     const listener = (_event, value) => {
@@ -25,10 +27,29 @@ try {
   if (!localStorage.getItem('simpleshare-theme')) localStorage.setItem('simpleshare-theme', 'dark');
 } catch {}
 window.addEventListener('DOMContentLoaded', () => {
+  const seenLogs = new WeakSet();
+  let lastToast = '';
   let last = '',
     scheduled;
   const snapshot = () => {
     scheduled = null;
+    for (const line of document.querySelectorAll('#logBody .log-line')) {
+      if (seenLogs.has(line)) continue;
+      seenLogs.add(line);
+      if (/media|ICE|TURN|publish|captur|reconnect|video.*failed/i.test(line.textContent))
+        ipcRenderer.send('site:diagnostic', { type: 'room-log', detail: line.textContent });
+    }
+    const toast = document.getElementById('toast');
+    if (toast?.classList.contains('show') && toast.textContent !== lastToast) {
+      lastToast = toast.textContent;
+      if (/TURN|could not connect|publish failed|capture ended|media.*unavailable/i.test(lastToast))
+        ipcRenderer.send('site:diagnostic', {
+          type: 'room-warning',
+          detail: lastToast,
+          warning: true,
+        });
+    }
+
     const people = [...document.querySelectorAll('#people .person')];
     const streamers = people
       .filter((person) => person.querySelector('.badge'))

@@ -81,23 +81,62 @@ try {
   await page.locator('#compactRestore').click();
   console.log('Favorites, preferences and compact view checked');
   await remote('document.getElementById("shareBtn").click()');
-  await expect(page.locator('#capturePicker')).toBeVisible({ timeout: 30000 });
-  const source = page.getByRole('button', {
+  const openPicker = async () => {
+    await expect
+      .poll(() => app.windows().some((p) => p.url().endsWith('/ui/picker.html')), {
+        timeout: 30000,
+      })
+      .toBe(true);
+    const child = app.windows().find((p) => p.url().endsWith('/ui/picker.html'));
+    child.on('pageerror', (error) => errors.push(error.message));
+    await expect(child.locator('#captureSources button').first()).toBeVisible();
+    return child;
+  };
+  let pickerPage = await openPicker();
+  const roomRemainedVisible = await app.evaluate(({ BrowserWindow }) => {
+    const main = BrowserWindow.getAllWindows().find((w) =>
+      w.webContents.getURL().endsWith('/ui/index.html'),
+    );
+    return main.contentView.children.some(
+      (view) => view.webContents?.getURL().startsWith('http') && view.getVisible(),
+    );
+  });
+  if (!roomRemainedVisible) throw Error('Room disappeared while picker was open');
+  await pickerPage.locator('#captureCancel').click();
+  await expect.poll(() => remote('window.captureResult?.error || null')).not.toBe(null);
+  await remote('window.captureResult=null;document.getElementById("shareBtn").click()');
+  pickerPage = await openPicker();
+  const source = pickerPage.getByRole('button', {
     name: 'Share SimpleShare Capture Fixture',
     exact: true,
   });
   await expect(source).toBeVisible();
   await source.click();
-  await page.locator('#displaysTab').click();
-  await expect(page.locator('#captureConfirm')).toBeDisabled();
-  await page.locator('#windowsTab').click();
+  await pickerPage.locator('#displaysTab').click();
+  await expect(pickerPage.locator('#captureConfirm')).toBeDisabled();
+  await pickerPage.locator('#windowsTab').click();
   await source.click();
-  await page.locator('#captureAudio').check();
+  await pickerPage.locator('#captureAudio').check();
   console.log('Application selected; starting native capture');
-  await page.locator('#captureConfirm').click();
+  await pickerPage.locator('#captureConfirm').click();
   await expect
     .poll(() => remote('window.captureResult'), { timeout: 30000 })
     .toEqual({ video: 1, audio: 1 });
+  await fixture.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].setFullScreen(true),
+  );
+  await fixture.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].setFullScreen(false),
+  );
+  await expect
+    .poll(() => remote('window.currentCapture.getVideoTracks()[0].readyState'))
+    .toBe('live');
+  await remote(
+    'window.currentCapture.getVideoTracks()[0].dispatchEvent(new Event("mute"));window.currentCapture.getVideoTracks()[0].dispatchEvent(new Event("unmute"))',
+  );
+  await expect
+    .poll(() => remote('window.currentCapture.getVideoTracks()[0].readyState'))
+    .toBe('live');
   const beforeFavorite = await remote('window.currentCapture.id');
   await page.locator('#favorites .room-link').click();
   if ((await remote('window.currentCapture?.id')) !== beforeFavorite)
@@ -148,6 +187,47 @@ try {
     )
     .toBe(false);
   await page.locator('#compactRestore').click();
+  await targetPage.evaluate(() => window.audioTest.audio.resume());
+  await remote('window.captureResult=null;document.getElementById("shareBtn").click()');
+  pickerPage = await openPicker();
+  await pickerPage.locator('#displaysTab').click();
+  await pickerPage.locator('#captureSources button').first().click();
+  const audioOption = await pickerPage
+    .locator('#displayAudioSource option')
+    .evaluateAll(
+      (options) =>
+        options.find((option) => option.textContent === 'SimpleShare Capture Fixture')?.value,
+    );
+  if (!audioOption) throw Error('Display picker has no application audio choice');
+  await pickerPage.locator('#displayAudioSource').selectOption(audioOption);
+  await expect(pickerPage.locator('#captureAudio')).toBeChecked();
+  await pickerPage.screenshot({ path: path.join(output, 'picker.png') });
+  await pickerPage.locator('#captureConfirm').click();
+  await expect
+    .poll(() => remote('window.captureResult'), { timeout: 30000 })
+    .toEqual({ video: 1, audio: 1 });
+  await expect
+    .poll(() => remote('window.currentCapture.getVideoTracks()[0].getSettings().displaySurface'))
+    .toBe('monitor');
+  await expect
+    .poll(() => remote('window.__simpleShareCapture.audioScope(window.currentCapture)'))
+    .toBe('application');
+  const displayAudioRms = await remote(
+    '(async()=>{const c=new AudioContext(),s=c.createMediaStreamSource(window.currentCapture),a=c.createAnalyser();s.connect(a);await c.resume();let peak=0;const f=new Float32Array(a.fftSize);for(let i=0;i<25;i++){await new Promise(r=>setTimeout(r,50));a.getFloatTimeDomainData(f);peak=Math.max(peak,Math.sqrt(f.reduce((s,x)=>s+x*x,0)/f.length));}await c.close();return peak;})()',
+  );
+  if (displayAudioRms < 0.001) throw Error('Display video lost selected application audio');
+  result.displayAudioRms = displayAudioRms;
+  await remote('document.getElementById("stopBtn").click()');
+  await expect
+    .poll(() => remote('window.currentCapture.getTracks().every(t=>t.readyState==="ended")'))
+    .toBe(true);
+  await expect
+    .poll(() =>
+      app.evaluate(({ app }) =>
+        app.getAppMetrics().some((item) => item.name === 'SimpleShare application audio'),
+      ),
+    )
+    .toBe(false);
   await page.screenshot({ path: path.join(output, 'full.png') });
   const privacy = await app.evaluate(({ webContents }) =>
     webContents

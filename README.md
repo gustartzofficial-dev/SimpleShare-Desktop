@@ -1,17 +1,17 @@
-# SimpleShare Desktop — Windows preview
+# SimpleShare Desktop 0.1.1 — Windows preview
 
 The live SimpleShare website, with a native home around it. Rooms, participants, viewing, quotas and media publication still come from https://simple-share-hazel.vercel.app. This project is separate from the website; no frontend or Worker deployment is needed to use the desktop app.
 
 ## Open the app
 
-Extract the portable Windows ZIP in `release/`, keep the extracted folder together, and open **SimpleShare Desktop.exe**. You do not need Node.js to run the portable build. This first build is an unsigned Windows x64 preview, so it has no verified publisher signature or automatic updater.
+Extract the portable Windows ZIP in `release/`, keep the extracted folder together, and open **SimpleShare Desktop.exe**. You do not need Node.js to run the portable build. This build is an unsigned Windows x64 preview, so it has no verified publisher signature or automatic updater.
 
 ## What is implemented
 
 - A frameless window with integrated SimpleShare branding, drag area and window buttons. Desktop-only CSS removes the duplicate web header while preserving the live room controls.
 - Saved rooms with personal names, a recent-room list and a star for the current room. Invites and direct-mode links retain their room identity. Clicking the room you already have open does not reload it or stop capture.
 - A dedicated **compact companion**, not a shrunken website: current streamers, your local screen preview, Open room, Go live and Stop sharing. Switching modes retains the same web contents and media session. Compact mode can stay on top, and its controls fit small windows with up to ten streamers.
-- An integrated desktop source picker with application/display thumbnails, explicit selection, cancel, and revalidation if a source changes or closes.
+- A smaller, separate source-picker window over the room. The room remains visible and active while choosing. Applications and displays have thumbnails, explicit selection, cancel, and source/PID revalidation.
 - **Windows application audio** captured from the selected process and its descendants using WASAPI, through an isolated native utility process. PCM is delivered at 48 kHz, signed 16-bit stereo to a bounded AudioWorklet buffer, then passed into the live website's normal audio mixer and stream.
 - Quality presets for the next share: 720p/30, 720p/60, 1080p/60. Actual resolution, FPS, video bitrate and network quality still depend on the live site and source.
 - A tray menu and optional close-to-tray behavior. Active capture/viewing prevents automatic app suspension; no display-sleep blocker is used. Closing to the tray keeps the current room running.
@@ -23,7 +23,11 @@ Click the website's **Share screen** or compact mode's **Go live**. Select an ap
 
 The audio scope is the application's **process tree**, not necessarily one tab or one window. Selecting a browser can include other tabs in that browser. Shared shell/host processes, such as Explorer, terminals and UWP ApplicationFrameHost, are not offered for process-tree audio because they may own unrelated applications. Such windows can still be shared as video.
 
-Display selections are video-only. To combine a whole display with a specific application's sound, share the display with source audio enabled, then use the live room's **Settings → Audio sources** to add the application as the second source. The second source uses the same native application picker; its picture is not published. Up to two steady audio sources plus one temporary replacement are supported.
+For an exclusive-fullscreen game, use **Displays**, choose the display showing the game, then select the game under **Application sound for this display**. Only that application's process tree is captured for sound; other desktop audio is excluded. The picture includes the entire selected display, so notifications and other windows on it are visible. Window capture can end when a game destroys/recreates its fullscreen surface; selecting a display avoids depending on that window's identity, but does not guarantee support for every protected or exclusive game.
+
+The live room's **Settings → Audio sources** can still add or replace a second application source. Its picture is not published. Up to two steady audio sources plus one temporary replacement are supported.
+
+**Deploy the accompanying web 6.2.1 frontend patch before using display + application audio.** It recognizes the desktop adapter's exact captured stream as application-scoped while continuing to reject browser-provided whole-system audio. The same patch separates publishing from receiving, so a publication timeout/recovery does not rebuild watched streams. No Worker secret or TURN setting needs changing for this update.
 
 Scoped audio requires Windows x64, build 20348 or later. This build is tested on Windows 11. Protected/DRM media, exclusive fullscreen games, minimized windows and applications routing sound through unrelated services may not capture normally. There is no claim of universal game support or Discord quality parity. The live site's encoder/bitrate limits and existing SFU/TURN transport remain in effect.
 
@@ -62,12 +66,18 @@ The native integration fixture briefly plays two quiet generated tones in separa
 
 The local window owns favorites and native controls. A separate `WebContentsView` loads the live site with sandboxing and context isolation enabled and Node integration disabled. IPC validates the sender frame and exact origin; the remote page cannot read files, execute commands or choose arbitrary process IDs. Capture requires an explicit user gesture and confirmation in the local picker. Granted sources are rechecked before native audio starts. Utility-process failures stop that audio source instead of silently widening capture.
 
-The desktop media adapter uses a narrow, versioned DOM/API contract with the current live app. It does not fork or replace the site's application bundle, bypass usage limits or change the backend. Major web DOM changes may require a desktop adapter update. If capture cannot initialize, the attempt ends with an error rather than enabling system or microphone audio.
+The desktop media adapter uses a narrow, documented DOM/API contract with the current live app. It does not fork or replace the site's application bundle, bypass usage limits or change the backend. Major web DOM changes may require a desktop adapter update. If native audio initialization fails, video can continue with a persistent warning; no system or microphone fallback is enabled. Windows capture mute/unmute is logged without stopping the share. An ended source requires a new explicit selection.
 
 See `VALIDATION.md` for the actual checks and `THIRD_PARTY_NOTICES.md` for dependency licenses. Original SimpleShare code/assets and new desktop source follow the included CC0 license; third-party components retain their own licenses.
+
+## Diagnostics and fullscreen failures
+
+Desktop preferences → **Open connection diagnostics** opens the local user-data/diagnostics.json report. It retains up to 200 recent startup, source selection, capture pause/resume/end and media/ICE log events. URLs and credential-like fields are redacted; it does not record video/audio frames, SDP or TURN credentials. Messages can still include display names and media-session identifiers. Review before sharing. Important room/TURN/capture messages remain visible in the sidebar until dismissed. A publication timeout is no longer presented as proof of a TURN configuration failure.
+
+The capture/isolation tests use local Windows fixtures, including fullscreen transitions. Zenless Zone Zero itself has not been tested on this machine. Borderless mode may be another useful option when Windows cannot capture an exclusive surface.
 
 ## Distribution
 
 The clean source archive excludes `node_modules/`, `.local/`, runtime profiles and generated binaries. The portable archive includes Electron and production dependencies. Neither contains Cloudflare keys or admin passwords. This desktop addition does not replace your existing web-only update folders.
 
-Suggested commit: `feat: add SimpleShare desktop companion with native application audio`
+Suggested commit: `fix: isolate media recovery and improve desktop game sharing`

@@ -4,6 +4,14 @@
   if (!bridge || !navigator.mediaDevices?.getDisplayMedia || window.__simpleShareCaptureInstalled)
     return;
   window.__simpleShareCaptureInstalled = true;
+  const scopes = new WeakMap();
+  Object.defineProperty(window, '__simpleShareCapture', {
+    value: Object.freeze({
+      audioScope: (stream) => scopes.get(stream) || 'none',
+    }),
+    configurable: false,
+    writable: false,
+  });
   const original = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices);
   const processor = `class NativeAppAudio extends AudioWorkletProcessor {
     constructor() { super(); this.queue = new Float32Array(48000); this.read = 0; this.write = 0; this.count = 0; this.port.onmessage = ({data}) => {
@@ -17,7 +25,30 @@
     process(inputs,outputs) { const out=outputs[0]; for(let i=0;i<out[0].length;i++) { for(let channel=0;channel<2;channel++) { out[channel][i]=this.count ? this.queue[this.read] : 0; if(this.count){this.read=(this.read+1)%this.queue.length;this.count--;} } } return true; }
   } registerProcessor('native-app-audio',NativeAppAudio);`;
   navigator.mediaDevices.getDisplayMedia = async (options) => {
-    const stream = await original(options);
+    let stream;
+    try {
+      stream = await original(options);
+    } catch (error) {
+      bridge.report('capture-failed', error.message);
+      throw error;
+    }
+    const video = stream.getVideoTracks()[0];
+    video?.addEventListener('mute', () =>
+      bridge.report('capture-paused', 'Windows paused this capture surface. Sharing stays active.'),
+    );
+    video?.addEventListener('unmute', () =>
+      bridge.report('capture-resumed', 'Windows resumed this capture surface.'),
+    );
+    video?.addEventListener(
+      'ended',
+      () =>
+        bridge.report(
+          'capture-ended',
+          'Windows ended the selected capture surface. For exclusive-fullscreen games, share the display with game audio selected.',
+          true,
+        ),
+      { once: true },
+    );
     const grant = await bridge.takeGrant();
     if (!grant?.id || !grant.audio || options?.audio === false) return stream;
     let context,
@@ -64,6 +95,8 @@
       if (!result.ok) throw new Error(result.error || 'Application audio could not start.');
       await context.resume();
       stream.addTrack(track);
+      scopes.set(stream, 'application');
+      bridge.report('capture-started', grant.sourceKind + ' video with scoped application audio');
       stream.getVideoTracks()[0].addEventListener('ended', cleanup, { once: true });
       track.addEventListener('ended', cleanup, { once: true });
       // The website owns capture teardown and may stop individual tracks directly.
@@ -75,6 +108,16 @@
       return stream;
     } catch (error) {
       cleanup();
+      if (video?.readyState === 'live') {
+        bridge.report(
+          'audio-unavailable',
+          'Application audio could not start: ' +
+            error.message +
+            '. Video sharing can continue; select another audio source in room settings.',
+          true,
+        );
+        return stream;
+      }
       stream.getTracks().forEach((item) => item.stop());
       throw new DOMException(error.message, 'NotReadableError');
     }

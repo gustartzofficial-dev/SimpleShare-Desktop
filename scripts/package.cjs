@@ -13,7 +13,7 @@ async function build() {
     electronVersion: '45.2.1',
     download: { cacheRoot: path.join(root, '.local/electron-cache') },
     tmpdir: path.join(root, '.local/package-temp'),
-    out: path.join(root, 'release'),
+    out: path.join(root, 'release', 'v' + require('../package.json').version),
     overwrite: false,
     asar: false,
     prune: true,

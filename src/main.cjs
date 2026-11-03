@@ -47,6 +47,8 @@ let win,
   normalBounds,
   snapshot = null,
   picker = null,
+  pickerWindow = null,
+  listingSources = false,
   quitting = false,
   powerBlock,
   loading = true,
@@ -56,6 +58,92 @@ let win,
   overlay = '';
 const grants = new Map();
 const audioJobs = new Map();
+const diagnostics = [];
+let diagnosticTimer;
+const diagnosticsFile = path.join(profileDirectory, 'diagnostics.json');
+function diagnostic(type, detail = '') {
+  const message = String(detail)
+    .replace(/https?:\/\/[^\s]+/g, '[URL]')
+    .replace(/(?:token|credential|authorization)\s*[:=]\s*[^\s,]+/gi, '[redacted]')
+    .slice(0, 500);
+  diagnostics.push({ time: new Date().toISOString(), type: String(type).slice(0, 40), message });
+  if (diagnostics.length > 200) diagnostics.shift();
+  if (!diagnosticTimer)
+    diagnosticTimer = setTimeout(() => {
+      diagnosticTimer = null;
+      try {
+        fs.writeFileSync(
+          diagnosticsFile,
+          JSON.stringify({ version: app.getVersion(), events: diagnostics }, null, 2),
+        );
+      } catch {}
+    }, 500);
+}
+function captureState() {
+  return picker
+    ? {
+        id: picker.id,
+        sources: picker.sources.map(({ source, pid }) => ({
+          id: source.id,
+          name: source.name,
+          thumbnail: source.thumbnail.toDataURL(),
+          audio: nativeAudioSupported && pid > 0 && pid !== process.pid,
+          display: source.id.startsWith('screen:'),
+        })),
+        audioRequested: picker.audioRequested,
+        nativeAudioSupported,
+      }
+    : null;
+}
+function closePickerWindow() {
+  const child = pickerWindow;
+  pickerWindow = null;
+  if (child && !child.isDestroyed()) child.destroy();
+}
+function openPickerWindow() {
+  const area = screen.getDisplayMatching(win.getBounds()).workArea;
+  pickerWindow = new BrowserWindow({
+    parent: win,
+    width: Math.min(760, area.width),
+    height: Math.min(620, area.height),
+    minWidth: 600,
+    minHeight: 480,
+    frame: false,
+    resizable: true,
+    backgroundColor: '#1c201c',
+    show: false,
+    title: 'Choose what to share',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload-picker.cjs'),
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  const child = pickerWindow;
+  child.setMenu(null);
+  child.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  child.webContents.on('will-navigate', (event) => event.preventDefault());
+  child.on('closed', () => {
+    if (pickerWindow === child) {
+      pickerWindow = null;
+      cancelCapture();
+    }
+  });
+  child.once('ready-to-show', () => {
+    if (!child.isDestroyed()) child.show();
+  });
+  child.loadFile(path.join(__dirname, 'ui/picker.html'));
+}
+function validPickerEvent(event) {
+  return (
+    pickerWindow &&
+    event.sender === pickerWindow.webContents &&
+    event.senderFrame === pickerWindow.webContents.mainFrame &&
+    event.senderFrame.url.startsWith('file:') &&
+    event.senderFrame.url.endsWith('/ui/picker.html')
+  );
+}
 const siteScript = fs.readFileSync(path.join(__dirname, 'native/site-capture.js'), 'utf8');
 const siteChrome = fs.readFileSync(path.join(__dirname, 'native/site-chrome.css'), 'utf8');
 const nativeAudioSupported =
@@ -74,19 +162,6 @@ function sendState() {
     notice,
     snapshot,
     data: store.state,
-    capture: picker
-      ? {
-          id: picker.id,
-          sources: picker.sources.map(({ source, pid }) => ({
-            id: source.id,
-            name: source.name,
-            thumbnail: source.thumbnail.toDataURL(),
-            audio: nativeAudioSupported && pid > 0 && pid !== process.pid,
-            display: source.id.startsWith('screen:'),
-          })),
-          audioRequested: picker.audioRequested,
-        }
-      : null,
     nativeAudioSupported,
   });
 }
@@ -99,7 +174,8 @@ function layout() {
     width: Math.max(1, width - 216),
     height: Math.max(1, height - 52),
   });
-  site.setVisible(!compact && !picker && !overlay && !loading && !loadError);
+  const visible = !compact && !overlay && !loading && !loadError;
+  if (site.getVisible() !== visible) site.setVisible(visible);
   site.webContents.send('site:compact', compact);
 }
 function setCompact(on) {
@@ -151,6 +227,8 @@ function cancelCapture() {
   const pending = picker;
   picker = null;
   clearTimeout(pending.timeout);
+  closePickerWindow();
+  diagnostic('picker-cancelled');
   pending.callback(null);
   layout();
   sendState();
@@ -210,6 +288,7 @@ async function navigate(input, force = false) {
     if (result.response !== 1) return;
     await roomAction('stop');
   }
+  cancelCapture();
   stopAllAudio();
   loading = true;
   loadError = '';
@@ -226,7 +305,7 @@ function nativeAudioStart(id) {
     grant.expiresAt < Date.now() ||
     audioJobs.has(id) ||
     audioJobs.size >= 3 ||
-    windowPid(grant.sourceId) !== grant.pid
+    windowPid(grant.audioSourceId) !== grant.pid
   )
     return Promise.resolve({
       ok: false,
@@ -248,6 +327,7 @@ function nativeAudioStart(id) {
     };
     const fail = (message) => {
       notice = 'Application audio stopped: ' + message;
+      diagnostic('audio-failed', message);
       site.webContents.send('site:audio', { id, error: message });
       finish({ ok: false, error: message });
       stopAudio(id);
@@ -260,6 +340,7 @@ function nativeAudioStart(id) {
     child.stdout?.on('data', () => {});
     child.stderr?.on('data', () => {});
     child.on('message', (data) => {
+      if (!audioJobs.has(id)) return;
       if (data.type === 'ready') child.postMessage({ type: 'start', pid: grant.pid });
       else if (data.type === 'started') finish({ ok: true });
       else if (data.type === 'error') fail(String(data.message).slice(0, 200));
@@ -294,6 +375,7 @@ function setupCapture() {
   session.setDisplayMediaRequestHandler(async (request, callback) => {
     if (
       picker ||
+      listingSources ||
       !request.userGesture ||
       !request.frame ||
       request.frame !== site.webContents.mainFrame ||
@@ -303,12 +385,20 @@ function setupCapture() {
       callback(null);
       return;
     }
+    listingSources = true;
     try {
       const sources = await desktopCapturer.getSources({
         types: ['window', 'screen'],
         thumbnailSize: { width: 320, height: 180 },
         fetchWindowIcons: false,
       });
+      if (
+        request.frame !== site.webContents.mainFrame ||
+        !trustedSite(request.frame.url, siteOrigin)
+      ) {
+        callback(null);
+        return;
+      }
       const ownSource = win.getMediaSourceId();
       picker = {
         id: crypto.randomUUID(),
@@ -327,53 +417,81 @@ function setupCapture() {
         frame: request.frame,
       };
       picker.timeout = setTimeout(cancelCapture, 120000);
+      diagnostic('picker-opened');
+      openPickerWindow();
       layout();
       sendState();
     } catch {
-      callback(null);
+      if (picker?.callback === callback) cancelCapture();
+      else callback(null);
       notice = 'Windows could not list shareable sources. Try again.';
       sendState();
+    } finally {
+      listingSources = false;
     }
   });
 }
 async function chooseCapture(payload) {
   if (!picker || payload?.requestId !== picker.id)
     throw new Error('This screen selection has expired.');
-  const choice = picker.sources.find(({ source }) => source.id === payload.sourceId);
+  const pending = picker;
+  if (pending.selecting) throw new Error('Selection is already starting.');
+  const choice = pending.sources.find(({ source }) => source.id === payload.sourceId);
   if (!choice) throw new Error('Select an application or display.');
-  const sourceExists = (
-    await desktopCapturer.getSources({
+  pending.selecting = true;
+  let currentSources;
+  try {
+    currentSources = await desktopCapturer.getSources({
       types: ['window', 'screen'],
       thumbnailSize: { width: 0, height: 0 },
-    })
-  ).some((source) => source.id === choice.source.id && source.name === choice.source.name);
-  if (!sourceExists || picker.frame !== site.webContents.mainFrame) {
-    cancelCapture();
-    throw new Error('The selected source closed or changed. Share again.');
+    });
+  } catch (error) {
+    pending.selecting = false;
+    throw error;
   }
+  if (picker !== pending || pending.frame !== site.webContents.mainFrame)
+    throw new Error('This screen selection has expired.');
+  const sourceExists = currentSources.some((source) => source.id === choice.source.id);
+  const audioChoice = choice.source.id.startsWith('screen:')
+    ? pending.sources.find(
+        ({ source }) => source.id === payload.audioSourceId && source.id.startsWith('window:'),
+      )
+    : choice;
   const audio =
     payload.audio === true &&
-    picker.audioRequested &&
+    pending.audioRequested &&
     nativeAudioSupported &&
-    choice.pid > 0 &&
-    choice.pid !== process.pid;
-  if (audio && windowPid(choice.source.id) !== choice.pid) {
+    audioChoice?.pid > 0 &&
+    audioChoice.pid !== process.pid;
+  if (
+    !sourceExists ||
+    (audio &&
+      (!currentSources.some((source) => source.id === audioChoice.source.id) ||
+        windowPid(audioChoice.source.id) !== audioChoice.pid))
+  ) {
     cancelCapture();
-    throw new Error('The application changed. Select it again.');
+    throw new Error('The selected application closed or changed. Select it again.');
   }
   const id = crypto.randomUUID();
   for (const [key, value] of grants) if (value.expiresAt < Date.now()) grants.delete(key);
   grants.set(id, {
     id,
     audio,
-    pid: choice.pid,
+    pid: audio ? audioChoice.pid : 0,
+    audioSourceId: audio ? audioChoice.source.id : null,
     sourceId: choice.source.id,
     expiresAt: Date.now() + 15000,
     taken: false,
   });
-  const pending = picker;
   picker = null;
+  closePickerWindow();
   clearTimeout(pending.timeout);
+  diagnostic(
+    'capture-selected',
+    choice.source.id.startsWith('screen:')
+      ? 'Display video; application audio: ' + audio
+      : 'Application video; application audio: ' + audio,
+  );
   pending.callback({ video: choice.source });
   layout();
   sendState();
@@ -408,6 +526,26 @@ async function quitApp() {
   app.quit();
 }
 function initializeIpc() {
+  ipcMain.handle('picker:command', async (event, name, payload) => {
+    if (!validPickerEvent(event)) throw new Error('Unauthorized source picker.');
+    try {
+      if (name === 'ready') return { ok: true, capture: captureState() };
+      if (name === 'select') await chooseCapture(payload);
+      else if (name === 'cancel') cancelCapture();
+      else throw new Error('Unknown source picker action.');
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error.message };
+    }
+  });
+  ipcMain.on('site:diagnostic', (event, value) => {
+    if (!validSiteEvent(event) || !value || typeof value.type !== 'string') return;
+    diagnostic(value.type, value.detail);
+    if (value.warning === true) {
+      notice = String(value.detail).slice(0, 300);
+      sendState();
+    }
+  });
   ipcMain.handle('shell:command', async (event, name, payload) => {
     if (!validShellEvent(event)) throw new Error('Unauthorized desktop request.');
     try {
@@ -441,9 +579,11 @@ function initializeIpc() {
         await applyProfile();
         win.setAlwaysOnTop(compact && store.state.prefs.alwaysOnTop);
         sendState();
-      } else if (name === 'capture-select') await chooseCapture(payload);
-      else if (name === 'capture-cancel') cancelCapture();
-      else if (name === 'room-action') {
+      } else if (name === 'diagnostics') {
+        if (!fs.existsSync(diagnosticsFile))
+          fs.writeFileSync(diagnosticsFile, JSON.stringify({ events: diagnostics }, null, 2));
+        await shell.openPath(diagnosticsFile);
+      } else if (name === 'room-action') {
         if (!['share', 'stop', 'mute', 'settings', 'copy'].includes(payload))
           throw new Error('Unknown room action.');
         await roomAction(payload);
@@ -466,7 +606,11 @@ function initializeIpc() {
     if (!grant) return null;
     grant.taken = true;
     if (!grant.audio) grants.delete(grant.id);
-    return { id: grant.id, audio: grant.audio };
+    return {
+      id: grant.id,
+      audio: grant.audio,
+      sourceKind: grant.sourceId.startsWith('screen:') ? 'display' : 'window',
+    };
   });
   ipcMain.handle('site:audio-start', (event, id) => {
     if (!validSiteEvent(event)) throw new Error('Unauthorized audio request.');
@@ -513,6 +657,10 @@ function initializeIpc() {
 function createWindow() {
   Menu.setApplicationMenu(null);
   store = new Store(profileDirectory, siteOrigin);
+  diagnostic(
+    'startup',
+    process.platform + ' ' + os.release() + '; Electron ' + process.versions.electron,
+  );
   win = new BrowserWindow({
     width: 1320,
     height: 850,
@@ -623,6 +771,7 @@ function createWindow() {
     }
   });
   win.on('closed', () => {
+    cancelCapture();
     stopAllAudio();
     site.webContents.close();
     app.quit();
