@@ -1,0 +1,11 @@
+/* Desktop owns branding; live room controls stay intact. */
+.home .home-nav {
+  display: none;
+}
+.room .room-brand {
+  display: none;
+}
+.room .room-title {
+  border-left: 0;
+  padding-left: 0;
+}
