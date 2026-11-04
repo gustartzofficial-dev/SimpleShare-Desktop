@@ -1,7 +1,7 @@
 {
   "name": "simpleshare-desktop",
   "productName": "SimpleShare Desktop",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "A native home for SimpleShare: live rooms, favorites, application audio and a compact companion.",
   "main": "src/main.cjs",
@@ -12,7 +12,9 @@
     "check": "node scripts/check.cjs && npm test",
     "package": "node scripts/package.cjs",
     "test:desktop": "node tests/integration.mjs",
-    "test:live": "node tests/live-smoke.mjs"
+    "test:live": "node tests/live-smoke.mjs",
+    "test:interop": "node tests/run-interop.mjs",
+    "test:persistence": "node tests/persistence.mjs"
   },
   "dependencies": {
     "koffi": "3.3.6",

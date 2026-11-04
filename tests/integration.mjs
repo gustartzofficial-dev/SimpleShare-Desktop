@@ -72,11 +72,12 @@ try {
   await page.locator('#preferencesClose').click();
   await page.locator('#compactToggle').click();
   await expect(page.locator('#compactPanel')).toBeVisible();
-  await expect
-    .poll(() =>
-      app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isAlwaysOnTop()),
-    )
-    .toBe(true);
+  if (process.env.SIMPLESHARE_TEST_INTEROP !== '1')
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isAlwaysOnTop()),
+      )
+      .toBe(true);
   await expect(page.locator('#compactShare')).toBeEnabled();
   await page.locator('#compactRestore').click();
   console.log('Favorites, preferences and compact view checked');
@@ -146,6 +147,10 @@ try {
   );
   if (result.width <= 0 || result.rms < 0.001)
     throw Error('Native video or selected-process audio was missing');
+  if (process.env.SIMPLESHARE_TEST_INTEROP === '1') {
+    const { checkDesktopBrowserInterop } = await import('./interop.mjs');
+    result.browserInterop = await checkDesktopBrowserInterop(remote, base);
+  }
   await targetPage.evaluate(() => window.audioTest.audio.suspend());
   const isolationRms = await remote(
     `(async()=>{const context=new AudioContext({sampleRate:48000}),source=context.createMediaStreamSource(window.currentCapture),meter=context.createAnalyser();source.connect(meter);await context.resume();await new Promise(r=>setTimeout(r,500));let peak=0;const samples=new Float32Array(meter.fftSize);for(let i=0;i<20;i++){await new Promise(r=>setTimeout(r,50));meter.getFloatTimeDomainData(samples);peak=Math.max(peak,Math.sqrt(samples.reduce((sum,x)=>sum+x*x,0)/samples.length))}await context.close();return peak})()`,

@@ -2,6 +2,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { roomUrl, defaultName, label, safePrefs } = require('./policy.cjs');
+const { cleanPreference, cleanPreferences } = require('./site-preferences.cjs');
 class Store {
   constructor(directory, origin) {
     this.directory = directory;
@@ -28,6 +29,7 @@ class Store {
       favorites: normalize(input.favorites),
       recent: normalize(input.recent).slice(0, 8),
       prefs: safePrefs(input.prefs),
+      sitePreferences: cleanPreferences(input.sitePreferences),
       lastRoom: '',
     };
     try {
@@ -69,6 +71,22 @@ class Store {
       ...this.state.recent.filter((entry) => entry.url !== url),
     ].slice(0, 8);
     this.save();
+  }
+  sitePreference(key, value) {
+    const clean = cleanPreference(key, value);
+    if (clean === null) return false;
+    if (this.state.sitePreferences[key] !== clean) {
+      const previous = this.state.sitePreferences[key];
+      this.state.sitePreferences[key] = clean;
+      try {
+        this.save();
+      } catch (error) {
+        if (previous === undefined) delete this.state.sitePreferences[key];
+        else this.state.sitePreferences[key] = previous;
+        throw error;
+      }
+    }
+    return true;
   }
   prefs(input) {
     this.state.prefs = safePrefs({ ...this.state.prefs, ...input });

@@ -1,20 +1,19 @@
-# SimpleShare Desktop v0.1.1 — Capture and connection fixes
+# SimpleShare Desktop v0.1.2 — Remember your name and preferences
 
-- Choose a source in a smaller window over your room.
-- Share a display with sound from one selected application's process tree. Useful when exclusive-fullscreen games recreate their window. The whole selected display is visible.
-- Keep video running if native audio initialization fails; show a persistent warning.
-- Keep important capture/media warnings and local connection diagnostics available in preferences.
-- Web 6.2.1 separates publishing and receiving recovery, and prevents delayed events from an old capture stopping a replacement.
+- Generated Guest names are saved and reused instead of changing at every launch.
+- Custom names and basic preferences have a native backup, restored before the website loads.
+- Preserve appearance, master mute/volume, sound effects and source-mix levels across restarts.
+- Keep the native preference bridge limited to validated public settings; no room tokens or passwords are backed up.
+- Flush Chromium storage on close/quit and show a warning if native settings cannot be saved.
 
-## Install this update
+## Update
 
-1. Upload the contents of the accompanying changed-files-only folder to the repository root. Keep the desktop/ and other directory structure intact.
-2. Redeploy the frontend from that commit. No Worker deployment or TURN/admin secret change is required.
-3. Extract the Windows x64 ZIP completely, then open SimpleShare Desktop.exe. Keep all extracted files together. To retain favorites, copy your existing user-data folder beside the new executable while both versions are closed. Do not publish user-data.
-4. Refresh existing web clients and restart desktop clients. For Zenless in exclusive fullscreen, select Displays and choose the game under Application sound for this display.
+Close both app versions. Extract SimpleShare-Desktop-v0.1.2-Windows-x64.zip completely. Copy your existing **user-data** folder beside the new executable before starting it; that preserves names, favorites and preferences. Keep the entire extracted folder together. Do not publish user-data.
 
-Unsigned Windows preview. Native capture, scoped audio isolation, compact mode and cleanup have been verified against local fixtures; Zenless itself has not been tested locally. This is not a promise that every exclusive/protected game surface is capturable.
+Upload the contents of the accompanying changed-files-only source folder and deploy web 6.2.3. No Worker deployment or TURN/admin secret changes are needed.
 
-Suggested GitHub tag: desktop-v0.1.1
-Suggested release title: SimpleShare Desktop v0.1.1 — Capture and connection fixes
-Suggested commit: fix: isolate media recovery and improve desktop game sharing
+Unsigned Windows x64 preview. Automated tests fully restart both source and packaged apps and verify generated/custom names, missing-browser-data recovery and rejection of credential fields. Capture and browser interoperability use local fixtures, not production room traffic.
+
+Tag: desktop-v0.1.2
+Title: SimpleShare Desktop v0.1.2 — Remember your name and preferences
+Commit: fix: persist desktop identity and user preferences

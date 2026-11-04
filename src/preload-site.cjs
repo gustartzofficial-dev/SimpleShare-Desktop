@@ -1,6 +1,45 @@
 'use strict';
 const { contextBridge, ipcRenderer } = require('electron');
+const preferenceKeys = [
+  'simpleshare-name',
+  'simpleshare-theme',
+  'simpleshare-muted',
+  'simpleshare-volume',
+  'simpleshare-sfx',
+  'simpleshare-primary-mix',
+  'simpleshare-extra-mix',
+];
+let savedPreferences = ipcRenderer.sendSync('site:preferences', 'read') || {};
+function savePreference(key, value) {
+  if (!preferenceKeys.includes(key) || typeof value !== 'string') return false;
+  const saved = ipcRenderer.sendSync('site:preferences', 'save', { key, value });
+  if (saved) savedPreferences[key] = value;
+  return saved === true;
+}
+for (const key of preferenceKeys) {
+  try {
+    const current = localStorage.getItem(key);
+    if (current !== null) savePreference(key, current);
+    else if (Object.hasOwn(savedPreferences, key)) localStorage.setItem(key, savedPreferences[key]);
+  } catch {}
+}
+if (!savedPreferences['simpleshare-name']) {
+  const name = 'Guest ' + crypto.randomUUID().slice(0, 2).toUpperCase();
+  savePreference('simpleshare-name', name);
+  try {
+    localStorage.setItem('simpleshare-name', name);
+  } catch {}
+}
+window.addEventListener('pagehide', () => {
+  for (const key of preferenceKeys)
+    try {
+      const value = localStorage.getItem(key);
+      if (value !== null) savePreference(key, value);
+    } catch {}
+});
 contextBridge.exposeInMainWorld('__simpleShareNative', {
+  preference: (key) => (preferenceKeys.includes(key) ? (savedPreferences[key] ?? null) : null),
+  savePreference,
   takeGrant: () => ipcRenderer.invoke('site:grant'),
   startAudio: (id) => ipcRenderer.invoke('site:audio-start', id),
   report: (type, detail, warning = false) =>
@@ -27,6 +66,19 @@ try {
   if (!localStorage.getItem('simpleshare-theme')) localStorage.setItem('simpleshare-theme', 'dark');
 } catch {}
 window.addEventListener('DOMContentLoaded', () => {
+  for (const key of preferenceKeys)
+    try {
+      const value = localStorage.getItem(key);
+      if (value !== null) savePreference(key, value);
+    } catch {}
+  document.addEventListener(
+    'change',
+    (event) => {
+      if (event.target?.id === 'myName' || event.target?.id === 'displayName')
+        savePreference('simpleshare-name', event.target.value);
+    },
+    true,
+  );
   const seenLogs = new WeakSet();
   let lastToast = '';
   let last = '',

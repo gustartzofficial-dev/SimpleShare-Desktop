@@ -1,6 +1,14 @@
-# SimpleShare Desktop 0.1.1 — Windows preview
+# SimpleShare Desktop 0.1.2 — Windows preview
 
 The live SimpleShare website, with a native home around it. Rooms, participants, viewing, quotas and media publication still come from https://simple-share-hazel.vercel.app. This project is separate from the website; no frontend or Worker deployment is needed to use the desktop app.
+
+## Saved identity and preferences
+
+Generated Guest names are saved once and reused. Custom names, appearance, master mute/volume, sound effects and audio-mix levels have a validated native backup in user-data/desktop.json as well as the website's local storage. The backup is restored before the website initializes. Room membership tokens and passwords are not included. Favorites and desktop preferences remain in the same profile.
+
+The portable profile stays beside the executable. Updating or moving the app into another directory requires keeping/copying the existing **user-data** folder beside the new executable while both versions are closed. A new empty profile is a new identity. Extract the full ZIP; do not run an executable directly from an archive's temporary preview.
+
+The desktop preload persists the initial name even with the older live frontend, imports existing saved preferences, and observes committed name changes. Deploy web 6.2.3 too for immediate native writes of the public preferences and stable generated names in ordinary browsers. Unavailable browser storage can fall back to the native preference cache. A failed native save is reported visibly instead of silently claiming success.
 
 ## Open the app
 
@@ -57,8 +65,11 @@ npm start
 npm run check          # source syntax and policy/storage regressions
 npm run test:desktop   # real native capture and process-isolation fixture
 npm run test:live      # real website load; no production room is joined
+npm run test:persistence # full restarts, names and preference recovery
 npm run package        # portable Windows x64 folder in release/
 ```
+
+The persistence test exercises shared public/lib modules and requires the full repository checkout, supplied in the full source archive.
 
 The native integration fixture briefly plays two quiet generated tones in separate Electron processes. It verifies selected-process audio is present, unrelated-process sound is absent, compact preview is live, favorites are stable, and capture ends cleanly. It does not send media to production.
 
@@ -70,6 +81,20 @@ The desktop media adapter uses a narrow, documented DOM/API contract with the cu
 
 See `VALIDATION.md` for the actual checks and `THIRD_PARTY_NOTICES.md` for dependency licenses. Original SimpleShare code/assets and new desktop source follow the included CC0 license; third-party components retain their own licenses.
 
+## Web 6.2.2 compatibility update
+
+Desktop 0.1.1 uses this update automatically after the live frontend is deployed; restart the desktop app. No replacement executable is required. Browser viewers also need to refresh. Audio metadata updates preserve video; replacement video prepares before switching, and listening settings survive handoffs.
+
+The source adds an optional local interoperability check:
+
+```powershell
+$env:PLAYWRIGHT_BROWSERS_PATH = "E:\SimpleShare-Major Update\.local\browsers"
+npx playwright install chromium
+npm run test:interop
+```
+
+Run those commands from the desktop folder. This captures the approved local test window and application audio, then sends it over local WebRTC to a separate headless Chromium browser. It does not publish a production room. Interop mode focuses on media and omits the independent Windows always-on-top assertion; the regular test:desktop suite retains it.
+
 ## Diagnostics and fullscreen failures
 
 Desktop preferences → **Open connection diagnostics** opens the local user-data/diagnostics.json report. It retains up to 200 recent startup, source selection, capture pause/resume/end and media/ICE log events. URLs and credential-like fields are redacted; it does not record video/audio frames, SDP or TURN credentials. Messages can still include display names and media-session identifiers. Review before sharing. Important room/TURN/capture messages remain visible in the sidebar until dismissed. A publication timeout is no longer presented as proof of a TURN configuration failure.
@@ -80,4 +105,4 @@ The capture/isolation tests use local Windows fixtures, including fullscreen tra
 
 The clean source archive excludes `node_modules/`, `.local/`, runtime profiles and generated binaries. The portable archive includes Electron and production dependencies. Neither contains Cloudflare keys or admin passwords. This desktop addition does not replace your existing web-only update folders.
 
-Suggested commit: `fix: isolate media recovery and improve desktop game sharing`
+Suggested commit: `fix: persist desktop identity and user preferences`

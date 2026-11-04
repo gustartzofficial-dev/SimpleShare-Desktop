@@ -526,6 +526,23 @@ async function quitApp() {
   app.quit();
 }
 function initializeIpc() {
+  ipcMain.on('site:preferences', (event, operation, payload) => {
+    if (!validSiteEvent(event)) {
+      event.returnValue = null;
+      return;
+    }
+    if (operation === 'read') event.returnValue = { ...store.state.sitePreferences };
+    else if (operation === 'save') {
+      try {
+        event.returnValue = store.sitePreference(payload?.key, payload?.value);
+      } catch {
+        diagnostic('preferences-error', 'Could not save application preferences.');
+        notice = 'Your preferences could not be saved. Keep the portable app in a writable folder.';
+        sendState();
+        event.returnValue = false;
+      }
+    } else event.returnValue = null;
+  });
   ipcMain.handle('picker:command', async (event, name, payload) => {
     if (!validPickerEvent(event)) throw new Error('Unauthorized source picker.');
     try {
@@ -765,6 +782,9 @@ function createWindow() {
   win.on('maximize', sendState);
   win.on('unmaximize', sendState);
   win.on('close', (event) => {
+    try {
+      site.webContents.session.flushStorageData();
+    } catch {}
     if (!quitting && store.state.prefs.closeToTray && tray) {
       event.preventDefault();
       win.hide();
@@ -827,6 +847,9 @@ else {
       app.exit(1);
     });
   app.on('before-quit', () => {
+    try {
+      site?.webContents.session.flushStorageData();
+    } catch {}
     quitting = true;
     stopAllAudio();
     if (powerBlock !== undefined) powerSaveBlocker.stop(powerBlock);
