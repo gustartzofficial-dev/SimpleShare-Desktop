@@ -12,6 +12,13 @@ import {invoke,Channel} from '@tauri-apps/api/core';
  window.__ssImportPreferences=values=>{for(const [key,value]of Object.entries(values))if(keys.includes(key)){saved[key]=value;try{localStorage.setItem(key,value);}catch{}}location.reload();};
  window.__ssFlushAndQuit=async token=>{for(const key of keys)try{const value=localStorage.getItem(key);if(value!=null)savePreference(key,value);}catch{}await Promise.allSettled([...pending]);await invoke('site_quit',{token});};
  window.__ssCompact=false;
+ let desktopToast;
+ window.__ssDesktopNotice=message=>{
+  if(!document.body)return;
+  if(!message&&!desktopToast)return;
+  if(!desktopToast){desktopToast=document.createElement('div');desktopToast.id='ss-desktop-notice';desktopToast.setAttribute('role','status');desktopToast.style.cssText='position:fixed;top:16px;right:16px;z-index:2147483647;max-width:min(360px,calc(100vw - 32px));padding:14px 12px 14px 16px;display:flex;align-items:start;gap:16px;background:#30362d;color:#f2f0e8;border:1px solid #f09777;border-radius:10px;box-shadow:0 8px 30px #0004;font:13px/1.6 system-ui;overflow-wrap:anywhere';const text=document.createElement('span'),close=document.createElement('button');text.className='notice-text';close.textContent='×';close.setAttribute('aria-label','Dismiss desktop notification');close.style.cssText='border:0;background:none;color:inherit;font-size:20px;cursor:pointer;padding:0 4px';close.onclick=()=>{desktopToast.hidden=true;desktopToast.style.display='none';invoke('site_notice',{message:''}).catch(()=>{});};desktopToast.append(text,close);document.body.append(desktopToast);}
+  desktopToast.querySelector('.notice-text').textContent=message;desktopToast.hidden=!message;desktopToast.style.display=message?'flex':'none';
+ };
  let choices=new Map(),earlyChoices=new Map();
  window.__ssAudioChoice=(id,grant)=>{if(choices.has(id)){choices.get(id)(grant);choices.delete(id);}else earlyChoices.set(id,grant);};
  async function chooseAudio(){const id=await invoke('audio_choose');if(earlyChoices.has(id)){const value=earlyChoices.get(id);earlyChoices.delete(id);return value;}return new Promise(resolve=>choices.set(id,resolve));}

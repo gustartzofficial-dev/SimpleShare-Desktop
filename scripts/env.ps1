@@ -8,6 +8,17 @@ if (Test-Path -LiteralPath (Join-Path $localRoot 'cargo/bin/cargo.exe')) {
 $env:CARGO_TARGET_DIR=Join-Path $localRoot 'target'
 $env:TEMP=Join-Path $localRoot 'tmp'
 $env:TMP=$env:TEMP
+$env:npm_config_cache=Join-Path (Split-Path -Parent $projectRoot) '.local/npm-cache'
+$env:XDG_CACHE_HOME=Join-Path $localRoot 'cache'
+$env:PIP_CACHE_DIR=Join-Path $localRoot 'pip-cache'
+$env:UV_CACHE_DIR=Join-Path $localRoot 'uv-cache'
+$env:NUGET_PACKAGES=Join-Path $localRoot 'nuget/packages'
+$env:DOTNET_CLI_HOME=Join-Path $localRoot 'dotnet'
+$env:GRADLE_USER_HOME=Join-Path $localRoot 'gradle'
+$env:PLAYWRIGHT_BROWSERS_PATH=Join-Path (Split-Path -Parent $projectRoot) '.local/browsers'
+$env:ELECTRON_CACHE=Join-Path $localRoot 'electron-cache'
+$env:ELECTRON_BUILDER_CACHE=Join-Path $localRoot 'electron-builder-cache'
+$env:PYTHONPYCACHEPREFIX=Join-Path $localRoot 'python-cache'
 New-Item -ItemType Directory -Path $env:TEMP -Force | Out-Null
 $msvc=Join-Path $localRoot 'toolchain/msvc'
 if(Test-Path -LiteralPath $msvc){

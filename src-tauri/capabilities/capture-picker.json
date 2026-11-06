@@ -1,1 +1,1 @@
-{"identifier":"capture-picker","description":"Local native window and display selector","webviews":["capture-picker"],"permissions":["core:default","allow-capture-picker-command"]}
+{"identifier":"capture-picker","description":"Local native window and display selector","webviews":["capture-picker"],"permissions":["core:default","allow-capture-picker-command","allow-capture-thumbnail"]}

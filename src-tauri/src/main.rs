@@ -91,6 +91,7 @@ fn layout(app: &tauri::AppHandle) {
     let state = app.state::<AppState>();
     let s = state.inner.lock().unwrap();
     let compact = s.compact;
+    let notice = s.notice.clone();
     let sidebar = if s.profile.data.prefs.sidebar_collapsed {
         60.0
     } else {
@@ -112,7 +113,10 @@ fn layout(app: &tauri::AppHandle) {
         } else {
             let _ = live.show();
         }
-        let _ = live.eval(format!("window.__ssCompact={compact};"));
+        let _ = live.eval(format!(
+            "window.__ssCompact={compact};window.__ssDesktopNotice?.({});",
+            json!(notice)
+        ));
     }
 }
 fn notice(app: &tauri::AppHandle, message: impl Into<String>) {
@@ -284,6 +288,14 @@ async fn shell_command(
     let value = payload.unwrap_or(Value::Null);
     let state = app.state::<AppState>();
     match name.as_str() {
+        "show-notice" => {
+            let message = label(value.as_str().unwrap_or(""), 300);
+            state.inner.lock().unwrap().notice = message.clone();
+            if let Some(view) = app.get_webview("live") {
+                let _ = view.eval(format!("window.__ssDesktopNotice?.({});", json!(message)));
+            }
+            return Ok(json!({"ok":true}));
+        }
         "ready" => {}
         "minimize" => {
             app.get_window("main")
@@ -900,6 +912,10 @@ fn main() {
         }
         return;
     }
+    let mut context = tauri::generate_context!();
+    if args.iter().any(|arg| arg == "--qa") {
+        context.config_mut().identifier.push_str(".qa");
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Some(w) = app.get_window("main") {
@@ -924,12 +940,13 @@ fn main() {
             audio_ack,
             capture_picker::capture_choose,
             capture_picker::capture_picker_command,
+            capture_picker::capture_thumbnail,
             capture_picker::video_start,
             capture_picker::video_stop,
             capture_picker::video_ack
         ])
         .setup(setup)
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("Could not start SimpleShare")
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {

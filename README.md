@@ -1,21 +1,23 @@
 # SimpleShare Desktop
 
-Simple screen sharing, with a desktop home. **Version 0.2.0** replaces the retired Electron desktop client with a Windows x64 application built with **Rust and Tauri 2**.
+Simple screen sharing, with a desktop home. **Version 0.2.1** is the Windows x64 client built with **Rust and Tauri 2**. It continues the desktop migration introduced in v0.2.0.
 
 The app uses the [live SimpleShare website](https://simple-share-hazel.vercel.app) for rooms and streaming connections. Its desktop shell, window/display selection, screen acquisition, application audio, profile storage, tray integration, and updater are implemented locally. No separate browser window is launched.
 
 ## Desktop features
 
 - An integrated window with a collapsible **Your places** sidebar, named favorite rooms, and recent rooms.
-- A small app-owned sharing selector. **Windows Graphics Capture acquires the picture directly from Rust**; the desktop client does not use browser screen acquisition or the browser screen picker.
+- A small app-owned sharing selector with native window/display thumbnails and a refresh control. **Windows Graphics Capture acquires the picture directly from Rust**; the desktop client does not use browser screen acquisition or the browser screen picker.
 - Direct3D GPU scaling to the selected stream size before readback, with two shared frame buffers and acknowledgements to prevent an unlimited frame queue.
 - Native **WASAPI application-loopback audio**, including the selected process and its child processes. Choose the audio application independently from the picture. The live room's secondary audio controls remain available.
 - Compact mode with your own preview, the people sharing, and quick controls. The same room and capture remain active when switching views.
 - Per-user installation, persistent AppData storage, single-instance behavior, system tray controls, and signed GitHub updates.
 
+Desktop notices stay visible above the room, and the collapsible sidebar owns its expand/collapse control. Capture requests borderless mode through Windows; Windows may retain its indicator when permission is denied or another app requires it.
+
 ## Install
 
-Download `SimpleShare_0.2.0_x64-setup.exe` from [Releases](https://github.com/gustartzofficial-dev/SimpleShare-Desktop/releases). Run the installer, then open SimpleShare from the Start menu. The installer can install the Microsoft Edge WebView2 runtime when it is missing.
+Download `SimpleShare_0.2.1_x64-setup.exe` from [Releases](https://github.com/gustartzofficial-dev/SimpleShare-Desktop/releases). Run the installer, then open SimpleShare from the Start menu. The installer can install the Microsoft Edge WebView2 runtime when it is missing.
 
 Windows 11 x64 is the recommended platform. Native process-loopback audio requires Windows build 20348 or newer. Protected video, anti-cheat restrictions, exclusive-fullscreen transitions, and applications running with higher privileges can affect capture. Borderless mode can help with games that recreate their rendering window.
 

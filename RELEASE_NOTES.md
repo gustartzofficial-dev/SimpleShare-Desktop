@@ -1,17 +1,11 @@
-# SimpleShare Desktop v0.2.0 — Native Windows capture
+# SimpleShare Desktop v0.2.1 — Clearer sharing controls
 
-This release replaces the Electron desktop client with Rust/Tauri and a Windows installer.
+- Fixed desktop notifications being covered by the room when the sidebar was collapsed. Notices now appear above the visible room, and remain available in compact mode and preferences.
+- Centered the collapsed new-room (+) button.
+- Moved the collapse/expand control into the Your places sidebar, with matching labels and tooltips.
+- Added native image previews for windows and displays in the sharing selector, with lazy loading, a refresh button, and an explicit unavailable state for sources that cannot supply a preview.
+- Requested Windows borderless capture for screen sharing and previews. Windows may retain its indicator if permission is denied or another application requires it.
 
-- Native Windows Graphics Capture for windows and displays, with an app-owned sharing selector. The room stays visible behind a separate, compact selector window.
-- GPU scaling and bounded shared frame buffers; browser screen acquisition is no longer used by the desktop sharing flow.
-- Native application audio, with the sound source selected independently from the shared picture.
-- A collapsible Your places sidebar, favorite rooms, recent rooms, compact mode with stream preview, and tray controls.
-- Persistent names and preferences in AppData, plus import of the old Electron `desktop.json` profile.
-- Signed GitHub updates, automatic checks, and installation deferred while in a room.
-- Profile recovery and capture-worker lifetime safeguards.
+Install `SimpleShare_0.2.1_x64-setup.exe`, or publish the signed installer, its `.sig`, and `latest.json` for existing Tauri users to receive the update. Keep the existing updater signing key and application identifier. Saved names, rooms, and preferences stay in AppData.
 
-**Install:** download and run `SimpleShare_0.2.0_x64-setup.exe`. Existing Electron 0.1.x users must install this version manually. Back up the old profile, import it in Desktop preferences, and then stop using the Electron client.
-
-Windows 11 x64 is recommended. Application audio requires Windows build 20348 or newer. The app still uses WebView2 to render the live website and run its existing WebRTC transport. Game capture varies with fullscreen mode, anti-cheat protection, graphics drivers, and permissions; broader multiplayer and game testing is still required. The installer has an unsigned Windows publisher; update payloads are separately signed and verified.
-
-The first public release and a cross-version update cannot be verified until the repository owner publishes the release assets and completes the signing-secret setup. See `UPDATER_SETUP.md` and `VALIDATION.md`.
+For a manual source update from v0.2.0, use `changed-files-upload` or the changed-files ZIP. No Electron migration or new signing key is needed. See `DELETED_FILES.txt` for any removals.

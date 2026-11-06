@@ -14,6 +14,7 @@ fn main() {
             "audio_ack",
             "capture_choose",
             "capture_picker_command",
+            "capture_thumbnail",
             "video_start",
             "video_stop",
             "video_ack",

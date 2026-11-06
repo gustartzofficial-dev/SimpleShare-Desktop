@@ -55,12 +55,18 @@ try{
  await shell.screenshot({path:'.local/qa/compact.png'});
  await command('compact');await delay(300);
  await shell.screenshot({path:'.local/qa/shell.png'});
+ assert(await shell.locator('#sidebar #sidebarToggle').count(),'Sidebar toggle must belong to the sidebar');
+ const alignment=await shell.evaluate(()=>{const sidebar=document.getElementById('sidebar').getBoundingClientRect(),button=document.getElementById('createRoom').getBoundingClientRect();return Math.abs((sidebar.left+sidebar.right-button.left-button.right)/2);});assert(alignment<=1,'Collapsed new-room button must be centered');
+ await command('show-notice','Sidebar notification visibility test');await live.waitForFunction(()=>document.getElementById('ss-desktop-notice')?.textContent.includes('Sidebar notification visibility test'));await live.screenshot({path:'.local/qa/notice.png'});await live.getByRole('button',{name:'Dismiss desktop notification'}).click();await command('show-notice','');result.sidebarNotices=true;
+ await live.evaluate(()=>window.__TAURI_INTERNALS__.invoke('site_notice',{message:'Compact notification check'}));await command('compact');await shell.locator('#feedback').waitFor({state:'visible'});await shell.locator('#feedbackClose').click();await command('compact');await live.waitForFunction(()=>getComputedStyle(document.getElementById('ss-desktop-notice')).display==='none');result.noticeDismissalAcrossModes=true;
  result.shell=true;result.compact=true;
  if(fixture){
   console.log('Starting native capture');
   await live.locator('#shareBtn').click();
   let picker;for(let i=0;i<200;i++){picker=browser.contexts().flatMap(c=>c.pages()).find(p=>p.url().includes('capture.html'));if(picker)break;const err=await live.evaluate(()=>window.captureError);if(err)throw Error('Capture: '+err);await delay(100);}
   assert(picker,'App-owned native capture picker must open');console.log('Native capture picker ready');picker.on('pageerror',e=>console.log('PICKER ERROR',e.message));await picker.locator('#sourceSearch').fill('SimpleShare Native Capture Fixture');
+  await picker.locator('.source-preview img').first().waitFor({state:'visible',timeout:15000});assert(await picker.locator('.source-preview img').first().evaluate(image=>image.naturalWidth===320),'Source picker must show a native image preview');result.sourcePreview=true;
+  await picker.locator('#refreshPreviews').click();await picker.locator('.source-preview img').first().waitFor({state:'visible',timeout:15000});result.previewRefresh=true;
   await picker.locator('.capture-source').filter({hasText:'SimpleShare Native Capture Fixture'}).first().click();await picker.screenshot({path:'.local/qa/native-picker.png'});await picker.locator('#captureConfirm').click();
   await live.waitForFunction(()=>window.capture?.getAudioTracks().length===1,{},{timeout:15000});
   await live.waitForFunction(()=>document.querySelector('video').videoWidth>0);

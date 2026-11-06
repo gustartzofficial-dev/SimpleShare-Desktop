@@ -76,6 +76,109 @@ pub fn valid(source: &Source) -> bool {
         .iter()
         .any(|s| s.id == source.id && s.pid == source.pid && s.detail == source.detail)
 }
+pub fn border_settings() -> DrawBorderSettings {
+    static MODE: std::sync::OnceLock<DrawBorderSettings> = std::sync::OnceLock::new();
+    *MODE.get_or_init(|| {
+        unsafe {
+            let _ = windows::Win32::System::WinRT::RoInitialize(
+                windows::Win32::System::WinRT::RO_INIT_MULTITHREADED,
+            );
+        }
+        if !windows_capture::graphics_capture_api::GraphicsCaptureApi::is_border_settings_supported(
+        )
+        .unwrap_or(false)
+        {
+            return DrawBorderSettings::Default;
+        }
+        let access = windows::Graphics::Capture::GraphicsCaptureAccess::RequestAccessAsync(
+            windows::Graphics::Capture::GraphicsCaptureAccessKind::Borderless,
+        )
+        .and_then(|request| request.join());
+        if std::env::args().any(|arg| arg == "--qa") {
+            eprintln!("Native borderless capture access: {access:?}");
+        }
+        DrawBorderSettings::WithoutBorder
+    })
+}
+
+struct Thumbnail {
+    send: Option<std::sync::mpsc::SyncSender<Result<Vec<u8>, String>>>,
+}
+impl GraphicsCaptureApiHandler for Thumbnail {
+    type Flags = std::sync::mpsc::SyncSender<Result<Vec<u8>, String>>;
+    type Error = CaptureError;
+    fn new(ctx: Context<Self::Flags>) -> Result<Self, Self::Error> {
+        Ok(Self {
+            send: Some(ctx.flags),
+        })
+    }
+    fn on_frame_arrived(
+        &mut self,
+        frame: &mut Frame,
+        control: InternalCaptureControl,
+    ) -> Result<(), Self::Error> {
+        if let Some(send) = self.send.take() {
+            let result = (|| -> Result<Vec<u8>, CaptureError> {
+                let mut pixels = vec![0u8; 320 * 180 * 4];
+                let scaler = Scaler::new(frame, 320, 180)?;
+                unsafe {
+                    scaler.copy_to(frame, pixels.as_mut_ptr() as usize)?;
+                }
+                use windows_capture::encoder::{
+                    ImageEncoder, ImageEncoderPixelFormat, ImageFormat,
+                };
+                Ok(
+                    ImageEncoder::new(ImageFormat::Jpeg, ImageEncoderPixelFormat::Rgba8)?
+                        .encode(&pixels, 320, 180)?,
+                )
+            })()
+            .map_err(|e| e.to_string());
+            let _ = send.send(result);
+            control.stop();
+        }
+        Ok(())
+    }
+}
+pub fn thumbnail(source: Source) -> Result<String, String> {
+    static GATE: Mutex<()> = Mutex::new(());
+    let _gate = GATE.lock().unwrap();
+    if !valid(&source) {
+        return Err("This source is no longer available".into());
+    }
+    let border = border_settings();
+    let (send, receive) = std::sync::mpsc::sync_channel(1);
+    macro_rules! start {
+        ($item:expr) => {
+            Thumbnail::start_free_threaded(Settings::new(
+                $item,
+                CursorCaptureSettings::WithoutCursor,
+                border,
+                SecondaryWindowSettings::Default,
+                MinimumUpdateIntervalSettings::Default,
+                DirtyRegionSettings::Default,
+                ColorFormat::Rgba8,
+                send,
+            ))
+            .map_err(|e| e.to_string())
+        };
+    }
+    let control = if source.kind == "display" {
+        start!(Monitor::from_raw_hmonitor(source.handle as *mut _))
+    } else {
+        start!(Window::from_raw_hwnd(source.handle as *mut _))
+    }?;
+    let result = receive
+        .recv_timeout(Duration::from_millis(1600))
+        .map_err(|_| {
+            "Preview unavailable while the window is minimized or not updating".to_string()
+        });
+    let _ = control.stop();
+    use base64::Engine;
+    Ok(format!(
+        "data:image/jpeg;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(result??)
+    ))
+}
 #[derive(Clone)]
 struct Flags {
     app: tauri::AppHandle,
@@ -274,12 +377,13 @@ impl Video {
             height,
             fps,
         };
+        let border = border_settings();
         macro_rules! start {
             ($item:expr) => {
                 Capture::start_free_threaded(Settings::new(
                     $item,
                     CursorCaptureSettings::WithCursor,
-                    DrawBorderSettings::Default,
+                    border,
                     SecondaryWindowSettings::Default,
                     MinimumUpdateIntervalSettings::Default,
                     DirtyRegionSettings::Default,

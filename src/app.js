@@ -13,6 +13,8 @@ let state,
 function feedback(message) {
   $('feedbackText').textContent = message || '';
   $('feedback').hidden = !message;
+  if(state&&!state.compact&&!state.overlay&&!state.loading&&!state.loadError)
+    window.desktop.command('show-notice',message||'');
 }
 async function command(name, payload) {
   try {
@@ -89,9 +91,14 @@ function roomItem(room, editable) {
 }
 function render(value) {
   if (!value) return;
+  const previousNotice=state?.notice;
   state = value;
+  document.body.classList.toggle('live-visible',!state.compact&&!state.overlay&&!state.loading&&!state.loadError);
   document.body.classList.toggle('sidebar-collapsed',state.data.prefs.sidebarCollapsed);
   $('sidebarToggle').setAttribute('aria-expanded',String(!state.data.prefs.sidebarCollapsed));
+  $('sidebarToggle').textContent=state.data.prefs.sidebarCollapsed?'›':'‹';
+  $('sidebarToggle').setAttribute('aria-label',(state.data.prefs.sidebarCollapsed?'Expand':'Collapse')+' Your places');
+  $('sidebarToggle').title=(state.data.prefs.sidebarCollapsed?'Expand':'Collapse')+' Your places';
   $('sidebarToggle').hidden=state.compact;
   $('profilePath').textContent=state.profilePath;
   $('updateStatus').textContent=state.updateStatus;
@@ -166,6 +173,7 @@ function render(value) {
     : 'This device supports video capture. Scoped application audio requires Windows x64, build 20348 or newer.';
   $('version').textContent = state.version;
   if (state.notice) feedback(state.notice);
+  else if(previousNotice) feedback('');
 }
 function showPreview(data) {
   $('localPreview').hidden = !data;

@@ -134,6 +134,27 @@ pub fn capture_picker_command(
     Ok(json!({"ok":true}))
 }
 #[tauri::command]
+pub async fn capture_thumbnail(
+    app: tauri::AppHandle,
+    webview: Webview,
+    source_id: String,
+) -> Result<String, String> {
+    local_auth(&webview, "capture-picker")?;
+    let source = {
+        let state = app.state::<AppState>();
+        let state = state.inner.lock().unwrap();
+        state
+            .capture_picker
+            .as_ref()
+            .and_then(|(_, sources, _, _)| sources.iter().find(|source| source.id == source_id))
+            .cloned()
+            .ok_or("The source selector has closed")?
+    };
+    tauri::async_runtime::spawn_blocking(move || windows_video::thumbnail(source))
+        .await
+        .map_err(|e| e.to_string())?
+}
+#[tauri::command]
 pub async fn video_start(
     app: tauri::AppHandle,
     webview: Webview,

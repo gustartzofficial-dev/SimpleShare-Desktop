@@ -1,6 +1,6 @@
 [package]
 name = "simpleshare-desktop"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 license = "CC0-1.0"
 
@@ -20,7 +20,8 @@ url = "2"
 wasapi = "0.23"
 windows-capture = "2.0.1"
 webview2-com = "0.39.1"
-windows = { version = "0.62", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_System_Com", "Win32_System_Power", "Win32_System_Console", "Win32_Graphics_Dwm", "Win32_Graphics_Direct3D_Fxc", "Win32_Graphics_Direct3D11"] }
+base64 = "0.23"
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_System_Com", "Win32_System_Power", "Win32_System_Console", "Win32_Graphics_Dwm", "Win32_Graphics_Direct3D_Fxc", "Win32_Graphics_Direct3D11", "Security_Authorization_AppCapabilityAccess"] }
 
 [profile.release]
 strip = true
@@ -30,3 +31,4 @@ codegen-units = 1
 [dev-dependencies]
 minisign-verify = "0.3"
 base64 = "0.23"
+
