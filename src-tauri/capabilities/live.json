@@ -1,0 +1,28 @@
+{
+  "identifier": "live",
+  "description": "Narrow native integration for the pinned live website",
+  "webviews": [
+    "live"
+  ],
+  "remote": {
+    "urls": [
+      "https://simple-share-hazel.vercel.app/*",
+      "http://127.0.0.1:*/*"
+    ]
+  },
+  "permissions": [
+    "allow-site-preferences",
+    "allow-site-state",
+    "allow-site-preview",
+    "allow-site-notice",
+    "allow-site-quit",
+    "allow-audio-choose",
+    "allow-audio-start",
+    "allow-audio-stop",
+    "allow-audio-ack",
+    "allow-capture-choose",
+    "allow-video-start",
+    "allow-video-stop",
+    "allow-video-ack"
+  ]
+}

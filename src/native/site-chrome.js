@@ -1,0 +1,2 @@
+
+(()=>{const install=()=>{const style=document.createElement('style');style.textContent="/* Desktop owns branding; live room controls stay intact. */\n.home .home-nav {\n  display: none;\n}\n.room .room-brand {\n  display: none;\n}\n.room .room-title {\n  border-left: 0;\n  padding-left: 0;\n}\n";document.head?.append(style);};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install,{once:true});else install();})();

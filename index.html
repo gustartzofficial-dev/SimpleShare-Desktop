@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>SimpleShare Desktop</title>
+    <link rel="stylesheet" href="/src/style.css" />
+    <script type="module" src="/src/app.js"></script>
+  </head>
+  <body>
+    <header class="titlebar">
+      <div class="title-drag">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i></span
+        ><span class="wordmark">SimpleShare<span>.</span></span
+        ><span id="windowTitle" class="window-title">Your people, a little closer.</span>
+      </div>
+      <button id="sidebarToggle" class="icon-button" aria-label="Collapse Your places" title="Collapse Your places">☰</button><button
+        id="saveCurrent"
+        class="icon-button"
+        title="Save this room"
+        aria-label="Save this room"
+        disabled
+      >
+        ☆</button
+      ><button
+        id="compactToggle"
+        class="icon-button"
+        title="Compact mode"
+        aria-label="Compact mode"
+      >
+        ▣</button
+      ><button id="minimize" class="window-button" aria-label="Minimize">−</button
+      ><button id="maximize" class="window-button" aria-label="Maximize">□</button
+      ><button id="close" class="window-button close-button" aria-label="Close window">×</button>
+    </header>
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-top">
+        <span class="eyebrow">YOUR PLACES</span
+        ><button id="createRoom" class="create-button">
+          <span aria-hidden="true">＋</span> New room
+        </button>
+      </div>
+      <form id="joinForm" class="join-form">
+        <label for="roomLink">Have an invite?</label>
+        <div class="input-row">
+          <input
+            id="roomLink"
+            placeholder="Paste a link or room code"
+            autocomplete="off"
+            spellcheck="false"
+            required
+          /><button type="submit" class="icon-button" aria-label="Open room invite">↗</button>
+        </div>
+      </form>
+      <section class="saved-section">
+        <div class="section-label">
+          <h2>Saved rooms</h2>
+          <span id="favoriteCount">0</span>
+        </div>
+        <div id="favorites"></div>
+        <p id="favoritesEmpty" class="empty-copy">
+          Make a room your regular spot.<br />Save it with the star above.
+        </p>
+      </section>
+      <section class="recent-section">
+        <h2>Recently visited</h2>
+        <div id="recent"></div>
+        <p id="recentEmpty" class="empty-copy">Your next good time starts with a link.</p>
+      </section>
+      <footer class="sidebar-footer">
+        <span class="native-label"><span class="dot"></span>Desktop edition</span
+        ><button
+          id="preferencesOpen"
+          class="icon-button"
+          title="Desktop preferences"
+          aria-label="Desktop preferences"
+        >
+          ⚙
+        </button>
+      </footer>
+    </aside>
+    <main id="localContent" class="local-content">
+      <section id="loading" class="loading-state">
+        <span class="loading-mark" aria-hidden="true"></span>
+        <h1>Bringing your room closer.</h1>
+        <p>Opening the live SimpleShare app…</p>
+      </section>
+      <section id="loadError" class="error-state" hidden>
+        <p class="eyebrow">LET’S GET YOU BACK</p>
+        <h1>Your room is a connection away.</h1>
+        <p id="loadErrorText"></p>
+        <button id="retry" class="primary">Try again</button>
+      </section>
+      <section id="preferences" class="preferences" hidden>
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">MAKE YOURSELF COMFORTABLE</p>
+            <h1>Desktop preferences.</h1>
+          </div>
+          <button id="preferencesClose" class="icon-button" aria-label="Close preferences">
+            ×
+          </button>
+        </div>
+        <p class="lede">A little control over how SimpleShare fits your day.</p>
+        <div class="preference-card">
+          <label for="qualityProfile">Sharing quality</label
+          ><select id="qualityProfile">
+            <option value="720p60">Smooth · 720p / 60 fps</option>
+            <option value="1080p60">Sharp · 1080p / 60 fps</option>
+            <option value="720p30">Lighter · 720p / 30 fps</option>
+          </select>
+          <p>
+            Applied to your next share. Room limits and actual capture quality still come from the
+            live app.
+          </p>
+        </div>
+        <div class="preference-card">
+          <label class="check-row"
+            ><span
+              >Keep compact mode on top<small
+                >Your companion stays in view while you work.</small
+              ></span
+            ><input id="alwaysOnTop" type="checkbox" /></label
+          ><label class="check-row"
+            ><span
+              >Close to the tray<small>Closing the window keeps your room connected.</small></span
+            ><input id="closeToTray" type="checkbox" /></label
+          ><label class="check-row"
+            ><span
+              >Reopen the last room<small
+                >Join your previous room on the next launch. Sharing always needs a new
+                click.</small
+              ></span
+            ><input id="reopenLastRoom" type="checkbox"
+          /></label>
+        </div>
+        <div class="preference-card">
+          <h2>Application sound</h2>
+          <p id="audioSupport"></p>
+          <p>
+            Only the selected application's process tree is captured. Multiple windows or tabs
+            belonging to that application may share its sound. Displays can capture a separately
+            selected application’s sound. Microphones and whole-system audio are not captured.
+          </p>
+        </div>
+        <p class="version">
+          SimpleShare Desktop <span id="version"></span> · Live website, native companion.
+        </p>
+        <div class="preference-card"><h2>Application updates</h2><p id="updateStatus"></p><label class="check-row"><span>Automatic updates<small>Checked from the desktop repository. Installs wait until you leave the room.</small></span><input id="autoUpdate" type="checkbox"></label><button id="checkUpdate" class="secondary">Check for updates</button> <button id="installUpdate" class="primary" hidden>Install update</button></div><div class="preference-card"><h2>Your saved data</h2><p id="profilePath"></p><button id="importProfile" class="secondary">Import old profile</button></div><button id="diagnostics" class="secondary">Open saved-data folder</button
+        ><button id="quit" class="text-button">Quit desktop app</button>
+      </section>
+    </main>
+    <section id="compactPanel" class="compact-panel" hidden>
+      <div class="compact-heading">
+        <div>
+          <p class="eyebrow">STILL TOGETHER</p>
+          <h1 id="compactRoom">Your room</h1>
+        </div>
+        <span id="compactStatus" class="status-pill">Connected</span>
+      </div>
+      <div class="preview-wrap">
+        <img id="localPreview" alt="Your shared screen preview" hidden />
+        <div id="previewEmpty" class="preview-empty">
+          <span class="preview-icon" aria-hidden="true">▱</span
+          ><strong>Your screen stays yours.</strong
+          ><span id="previewHint">Share a screen to see your preview here.</span>
+        </div>
+        <span id="previewLive" class="preview-live" hidden>YOUR STREAM · LIVE</span>
+      </div>
+      <div class="compact-roster-head">
+        <h2>Sharing now</h2>
+        <span id="streamerCount">0</span>
+      </div>
+      <div id="compactStreamers" class="compact-streamers"></div>
+      <p id="streamersEmpty" class="empty-copy">
+        Nobody is sharing yet. Stay for the next good thing.
+      </p>
+      <div class="compact-actions">
+        <button id="compactRestore" class="secondary">Open room ↗</button
+        ><button id="compactStop" class="stop-button" hidden>Stop sharing</button
+        ><button id="compactShare" class="primary">Go live</button>
+      </div>
+      <p class="compact-footnote">Your room keeps running in this view.</p>
+    </section>
+    <div id="feedback" role="status" aria-live="polite" hidden>
+      <span id="feedbackText"></span
+      ><button id="feedbackClose" class="icon-button" aria-label="Dismiss message">×</button>
+    </div>
+  </body>
+</html>

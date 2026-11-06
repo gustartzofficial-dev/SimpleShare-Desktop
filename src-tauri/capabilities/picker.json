@@ -1,0 +1,11 @@
+{
+  "identifier": "audio-picker",
+  "description": "Local application-audio selection",
+  "webviews": [
+    "audio-picker"
+  ],
+  "permissions": [
+    "core:default",
+    "allow-picker-command"
+  ]
+}

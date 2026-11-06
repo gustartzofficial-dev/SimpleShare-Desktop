@@ -1,19 +1,17 @@
-# SimpleShare Desktop v0.1.2 — Remember your name and preferences
+# SimpleShare Desktop v0.2.0 — Native Windows capture
 
-- Generated Guest names are saved and reused instead of changing at every launch.
-- Custom names and basic preferences have a native backup, restored before the website loads.
-- Preserve appearance, master mute/volume, sound effects and source-mix levels across restarts.
-- Keep the native preference bridge limited to validated public settings; no room tokens or passwords are backed up.
-- Flush Chromium storage on close/quit and show a warning if native settings cannot be saved.
+This release replaces the Electron desktop client with Rust/Tauri and a Windows installer.
 
-## Update
+- Native Windows Graphics Capture for windows and displays, with an app-owned sharing selector. The room stays visible behind a separate, compact selector window.
+- GPU scaling and bounded shared frame buffers; browser screen acquisition is no longer used by the desktop sharing flow.
+- Native application audio, with the sound source selected independently from the shared picture.
+- A collapsible Your places sidebar, favorite rooms, recent rooms, compact mode with stream preview, and tray controls.
+- Persistent names and preferences in AppData, plus import of the old Electron `desktop.json` profile.
+- Signed GitHub updates, automatic checks, and installation deferred while in a room.
+- Profile recovery and capture-worker lifetime safeguards.
 
-Close both app versions. Extract SimpleShare-Desktop-v0.1.2-Windows-x64.zip completely. Copy your existing **user-data** folder beside the new executable before starting it; that preserves names, favorites and preferences. Keep the entire extracted folder together. Do not publish user-data.
+**Install:** download and run `SimpleShare_0.2.0_x64-setup.exe`. Existing Electron 0.1.x users must install this version manually. Back up the old profile, import it in Desktop preferences, and then stop using the Electron client.
 
-Upload the contents of the accompanying changed-files-only source folder and deploy web 6.2.3. No Worker deployment or TURN/admin secret changes are needed.
+Windows 11 x64 is recommended. Application audio requires Windows build 20348 or newer. The app still uses WebView2 to render the live website and run its existing WebRTC transport. Game capture varies with fullscreen mode, anti-cheat protection, graphics drivers, and permissions; broader multiplayer and game testing is still required. The installer has an unsigned Windows publisher; update payloads are separately signed and verified.
 
-Unsigned Windows x64 preview. Automated tests fully restart both source and packaged apps and verify generated/custom names, missing-browser-data recovery and rejection of credential fields. Capture and browser interoperability use local fixtures, not production room traffic.
-
-Tag: desktop-v0.1.2
-Title: SimpleShare Desktop v0.1.2 — Remember your name and preferences
-Commit: fix: persist desktop identity and user preferences
+The first public release and a cross-version update cannot be verified until the repository owner publishes the release assets and completes the signing-secret setup. See `UPDATER_SETUP.md` and `VALIDATION.md`.

@@ -1,108 +1,81 @@
-# SimpleShare Desktop 0.1.2 — Windows preview
+# SimpleShare Desktop
 
-The live SimpleShare website, with a native home around it. Rooms, participants, viewing, quotas and media publication still come from https://simple-share-hazel.vercel.app. This project is separate from the website; no frontend or Worker deployment is needed to use the desktop app.
+Simple screen sharing, with a desktop home. **Version 0.2.0** replaces the retired Electron desktop client with a Windows x64 application built with **Rust and Tauri 2**.
 
-## Saved identity and preferences
+The app uses the [live SimpleShare website](https://simple-share-hazel.vercel.app) for rooms and streaming connections. Its desktop shell, window/display selection, screen acquisition, application audio, profile storage, tray integration, and updater are implemented locally. No separate browser window is launched.
 
-Generated Guest names are saved once and reused. Custom names, appearance, master mute/volume, sound effects and audio-mix levels have a validated native backup in user-data/desktop.json as well as the website's local storage. The backup is restored before the website initializes. Room membership tokens and passwords are not included. Favorites and desktop preferences remain in the same profile.
+## Desktop features
 
-The portable profile stays beside the executable. Updating or moving the app into another directory requires keeping/copying the existing **user-data** folder beside the new executable while both versions are closed. A new empty profile is a new identity. Extract the full ZIP; do not run an executable directly from an archive's temporary preview.
+- An integrated window with a collapsible **Your places** sidebar, named favorite rooms, and recent rooms.
+- A small app-owned sharing selector. **Windows Graphics Capture acquires the picture directly from Rust**; the desktop client does not use browser screen acquisition or the browser screen picker.
+- Direct3D GPU scaling to the selected stream size before readback, with two shared frame buffers and acknowledgements to prevent an unlimited frame queue.
+- Native **WASAPI application-loopback audio**, including the selected process and its child processes. Choose the audio application independently from the picture. The live room's secondary audio controls remain available.
+- Compact mode with your own preview, the people sharing, and quick controls. The same room and capture remain active when switching views.
+- Per-user installation, persistent AppData storage, single-instance behavior, system tray controls, and signed GitHub updates.
 
-The desktop preload persists the initial name even with the older live frontend, imports existing saved preferences, and observes committed name changes. Deploy web 6.2.3 too for immediate native writes of the public preferences and stable generated names in ordinary browsers. Unavailable browser storage can fall back to the native preference cache. A failed native save is reported visibly instead of silently claiming success.
+## Install
 
-## Open the app
+Download `SimpleShare_0.2.0_x64-setup.exe` from [Releases](https://github.com/gustartzofficial-dev/SimpleShare-Desktop/releases). Run the installer, then open SimpleShare from the Start menu. The installer can install the Microsoft Edge WebView2 runtime when it is missing.
 
-Extract the portable Windows ZIP in `release/`, keep the extracted folder together, and open **SimpleShare Desktop.exe**. You do not need Node.js to run the portable build. This build is an unsigned Windows x64 preview, so it has no verified publisher signature or automatic updater.
+Windows 11 x64 is the recommended platform. Native process-loopback audio requires Windows build 20348 or newer. Protected video, anti-cheat restrictions, exclusive-fullscreen transitions, and applications running with higher privileges can affect capture. Borderless mode can help with games that recreate their rendering window.
 
-## What is implemented
+The installer does not include a Windows publisher certificate. Windows may identify it as an unsigned publisher. Update signatures are a separate mechanism: the app verifies downloaded releases against its embedded public key.
 
-- A frameless window with integrated SimpleShare branding, drag area and window buttons. Desktop-only CSS removes the duplicate web header while preserving the live room controls.
-- Saved rooms with personal names, a recent-room list and a star for the current room. Invites and direct-mode links retain their room identity. Clicking the room you already have open does not reload it or stop capture.
-- A dedicated **compact companion**, not a shrunken website: current streamers, your local screen preview, Open room, Go live and Stop sharing. Switching modes retains the same web contents and media session. Compact mode can stay on top, and its controls fit small windows with up to ten streamers.
-- A smaller, separate source-picker window over the room. The room remains visible and active while choosing. Applications and displays have thumbnails, explicit selection, cancel, and source/PID revalidation.
-- **Windows application audio** captured from the selected process and its descendants using WASAPI, through an isolated native utility process. PCM is delivered at 48 kHz, signed 16-bit stereo to a bounded AudioWorklet buffer, then passed into the live website's normal audio mixer and stream.
-- Quality presets for the next share: 720p/30, 720p/60, 1080p/60. Actual resolution, FPS, video bitrate and network quality still depend on the live site and source.
-- A tray menu and optional close-to-tray behavior. Active capture/viewing prevents automatic app suspension; no display-sleep blocker is used. Closing to the tray keeps the current room running.
-- Persistent local preferences, optional last-room reopening, offline/error recovery, and source cleanup on stop, navigation or app exit.
+## Saved data and Electron migration
 
-## Application audio
+Profiles are stored in **`%APPDATA%\dev.simpleshare.desktop\`**, outside the application directory:
 
-Click the website's **Share screen** or compact mode's **Go live**. Select an application, check **Include application sound**, then confirm. The website's source-audio option must also be enabled. No microphone permission is granted, and there is no silent fallback to full-system audio.
+- `profile.json`: display name, safe room preferences, favorites, recent rooms, and desktop preferences.
+- `webview\`: the persistent WebView2 website profile.
 
-The audio scope is the application's **process tree**, not necessarily one tab or one window. Selecting a browser can include other tabs in that browser. Shared shell/host processes, such as Explorer, terminals and UWP ApplicationFrameHost, are not offered for process-tree audio because they may own unrelated applications. Such windows can still be shared as video.
+Keep the application identifier `dev.simpleshare.desktop` unchanged in future builds. Reinstalling or changing build folders uses the same profile. Leave the uninstaller's option to remove application data unchecked when you want to retain it. The app opens the profile folder from Desktop preferences. A malformed JSON profile is preserved as `profile-invalid-<id>.json` before a fresh profile is created.
 
-For an exclusive-fullscreen game, use **Displays**, choose the display showing the game, then select the game under **Application sound for this display**. Only that application's process tree is captured for sound; other desktop audio is excluded. The picture includes the entire selected display, so notifications and other windows on it are visible. Window capture can end when a game destroys/recreates its fullscreen surface; selecting a display avoids depending on that window's identity, but does not guarantee support for every protected or exclusive game.
+To migrate from Electron, close the old application, open **Desktop preferences → Import old profile**, and choose the old `user-data/desktop.json`. Favorites and supported preferences, including the saved name, are imported. This does not copy browser credentials or all browser storage. Keep the old portable folder until the import has been checked, then stop using the Electron client. Electron 0.1.x cannot install Tauri updates automatically; this first installer must be installed manually.
 
-The live room's **Settings → Audio sources** can still add or replace a second application source. Its picture is not published. Up to two steady audio sources plus one temporary replacement are supported.
+## Updates
 
-**Deploy the accompanying web 6.2.1 frontend patch before using display + application audio.** It recognizes the desktop adapter's exact captured stream as application-scoped while continuing to reject browser-provided whole-system audio. The same patch separates publishing from receiving, so a publication timeout/recovery does not rebuild watched streams. No Worker secret or TURN setting needs changing for this update.
+Automatic checks are enabled by default. The app checks the public repository at startup and periodically, downloads a signed installer while idle, verifies its signature, and applies it outside a room. In-room activity defers installation. Desktop preferences also provides manual check/install controls and an automatic-update toggle.
 
-Scoped audio requires Windows x64, build 20348 or later. This build is tested on Windows 11. Protected/DRM media, exclusive fullscreen games, minimized windows and applications routing sound through unrelated services may not capture normally. There is no claim of universal game support or Discord quality parity. The live site's encoder/bitrate limits and existing SFU/TURN transport remain in effect.
+Repository: **[gustartzofficial-dev/SimpleShare-Desktop](https://github.com/gustartzofficial-dev/SimpleShare-Desktop)**.
 
-## Compact mode
+Update endpoint: `https://github.com/gustartzofficial-dev/SimpleShare-Desktop/releases/latest/download/latest.json`.
 
-Use the square compact button in the title bar, or **Toggle compact mode** in the tray. The app keeps the live room loaded with background throttling disabled; it does not join again, republish or start another stream. The local preview is a small JPEG sampled about three times a second for low overhead, not a second high-quality network stream. **Open room** returns to the full app. **Stop sharing** releases the source and native audio helper.
+The repository owner must complete [UPDATER_SETUP.md](UPDATER_SETUP.md) before publishing. Every release needs the installer, its `.sig`, and `latest.json`. The private signing key must never be committed or attached to a release. Keep the original key for future versions; changing the embedded key prevents existing clients from accepting those updates.
 
-## Saved data and updates
+## Build on Windows
 
-The portable app keeps `user-data/` beside the executable. It contains favorites, preferences and the isolated Chromium profile used by the live site. Keep that folder when updating the portable app. Do not upload or share it. Development builds use `.local/user-data/` instead. Desktop preferences do not read your regular browser profile.
-
-Web updates arrive through the live site. Native desktop updates currently require replacing the portable app files while retaining `user-data/`. The public site origin is pinned in `src/lib/policy.cjs`; changing domains requires a deliberate rebuild. Favorites accept only that origin and valid room links.
-
-## Develop and build
-
-Use Node.js 22.12+ (Node 24 recommended), Windows x64 and npm. The native dependencies include prebuilt N-API binaries; a C++ toolchain is not needed for the supplied portable build.
+Install Node.js 24 LTS, stable Rust with the `x86_64-pc-windows-msvc` target, Microsoft Visual Studio C++ build tools with a Windows SDK, and WebView2. Then:
 
 ```powershell
-Set-Location -LiteralPath "E:\SimpleShare-Major Update\desktop"
-$env:electron_config_cache = "$PWD\.local\electron-cache"
-$env:npm_config_cache = "$PWD\.local\npm-cache"
 npm ci
-npm start
+npm run check
+npm run build
+cargo test --locked --manifest-path src-tauri/Cargo.toml
+npm run tauri -- dev
 ```
+
+Create a signed installer:
 
 ```powershell
-npm run check          # source syntax and policy/storage regressions
-npm run test:desktop   # real native capture and process-isolation fixture
-npm run test:live      # real website load; no production room is joined
-npm run test:persistence # full restarts, names and preference recovery
-npm run package        # portable Windows x64 folder in release/
+$env:TAURI_SIGNING_PRIVATE_KEY = 'C:\private\simpleshare-updater.key'
+$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ''
+npm run tauri -- build --target x86_64-pc-windows-msvc --bundles nsis --ci
 ```
 
-The persistence test exercises shared public/lib modules and requires the full repository checkout, supplied in the full source archive.
+Normal build output is under `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/`. `scripts/env.ps1` supports this workspace's optional local toolchain and redirects output to `.local/target/`; it is not a prerequisite for a normal developer installation.
 
-The native integration fixture briefly plays two quiet generated tones in separate Electron processes. It verifies selected-process audio is present, unrelated-process sound is absent, compact preview is live, favorites are stable, and capture ends cleanly. It does not send media to production.
+The GitHub workflow in `.github/workflows/release.yml` builds and signs a **draft** release when run manually. The owner reviews and publishes it. Increase the version in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json` for each release; update the lockfiles as needed.
 
-## Architecture and security
+## Architecture and limits
 
-The local window owns favorites and native controls. A separate `WebContentsView` loads the live site with sandboxing and context isolation enabled and Node integration disabled. IPC validates the sender frame and exact origin; the remote page cannot read files, execute commands or choose arbitrary process IDs. Capture requires an explicit user gesture and confirmation in the local picker. Granted sources are rechecked before native audio starts. Utility-process failures stop that audio source instead of silently widening capture.
+The pinned live website receives a narrow native bridge. Native code validates the calling webview and origin. Only the local shell can manage desktop preferences, navigation, or installation. The live website cannot access arbitrary files or launch arbitrary commands. Source grants come from the local picker and are revalidated before capture.
 
-The desktop media adapter uses a narrow, documented DOM/API contract with the current live app. It does not fork or replace the site's application bundle, bypass usage limits or change the backend. Major web DOM changes may require a desktop adapter update. If native audio initialization fails, video can continue with a persistent warning; no system or microphone fallback is enabled. Windows capture mute/unmute is logged without stopping the share. An ended source requires a new explicit selection.
+Video acquisition and GPU scaling run in Rust through Windows Graphics Capture and Direct3D. Read-only shared memory carries bounded frames to a generated video track for the website's WebRTC transport. Audio runs in a separate Rust WASAPI helper with startup timeout, bounded packets, and parent-process lifetime handling. No whole-system audio fallback is used.
 
-See `VALIDATION.md` for the actual checks and `THIRD_PARTY_NOTICES.md` for dependency licenses. Original SimpleShare code/assets and new desktop source follow the included CC0 license; third-party components retain their own licenses.
+**Tauri on Windows still uses WebView2, which is Chromium-based, to render the live website and run its existing WebRTC connection.** Rust replaces Electron's Node main process and the acquisition path. This is not a fully native room UI or a Rust WebRTC implementation. Lower total RAM use and better game performance are not guaranteed without measurements on the target systems.
 
-## Web 6.2.2 compatibility update
+An internet connection and the existing SimpleShare backend are required. TURN, SFU, and account secrets belong on the server; none should be embedded in this application. The website/Worker sources are maintained separately and are not changed by uploading this desktop repository.
 
-Desktop 0.1.1 uses this update automatically after the live frontend is deployed; restart the desktop app. No replacement executable is required. Browser viewers also need to refresh. Audio metadata updates preserve video; replacement video prepares before switching, and listening settings survive handoffs.
+## Validation and licensing
 
-The source adds an optional local interoperability check:
-
-```powershell
-$env:PLAYWRIGHT_BROWSERS_PATH = "E:\SimpleShare-Major Update\.local\browsers"
-npx playwright install chromium
-npm run test:interop
-```
-
-Run those commands from the desktop folder. This captures the approved local test window and application audio, then sends it over local WebRTC to a separate headless Chromium browser. It does not publish a production room. Interop mode focuses on media and omits the independent Windows always-on-top assertion; the regular test:desktop suite retains it.
-
-## Diagnostics and fullscreen failures
-
-Desktop preferences → **Open connection diagnostics** opens the local user-data/diagnostics.json report. It retains up to 200 recent startup, source selection, capture pause/resume/end and media/ICE log events. URLs and credential-like fields are redacted; it does not record video/audio frames, SDP or TURN credentials. Messages can still include display names and media-session identifiers. Review before sharing. Important room/TURN/capture messages remain visible in the sidebar until dismissed. A publication timeout is no longer presented as proof of a TURN configuration failure.
-
-The capture/isolation tests use local Windows fixtures, including fullscreen transitions. Zenless Zone Zero itself has not been tested on this machine. Borderless mode may be another useful option when Windows cannot capture an exclusive surface.
-
-## Distribution
-
-The clean source archive excludes `node_modules/`, `.local/`, runtime profiles and generated binaries. The portable archive includes Electron and production dependencies. Neither contains Cloudflare keys or admin passwords. This desktop addition does not replace your existing web-only update folders.
-
-Suggested commit: `fix: persist desktop identity and user preferences`
+See [VALIDATION.md](VALIDATION.md) for performed checks and remaining real-world checks, and [RELEASE_NOTES.md](RELEASE_NOTES.md) for this release. Source follows the original CC0 license. Third-party dependencies and the Geist font retain their licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
