@@ -1,3 +1,17 @@
+# Validation — SimpleShare Desktop 0.3.0
+
+Built on Linux, 2026-11-23, by cross-compiling for Windows x64 (`x86_64-pc-windows-gnu`, Rust 1.97.1 with the standard library built from source, MinGW-w64 linker) and packaging with the Tauri CLI 2.12.4 NSIS bundler and NSIS 3.09. The Rust code type-checks for Windows with no warnings. The frontend bridge and local pages build with Vite/esbuild. The installer bundles `WebView2Loader.dll`, which the GNU build loads dynamically; the official MSVC build links it statically instead.
+
+The new website features used inside the app (camera, Audio switch, translations, saved rooms hidden in the app) were exercised in Chrome against the 6.3.0 website build; see the website VALIDATION.md.
+
+## Not verified in this build
+
+This environment has no Windows or WebView2, so the installer and app were not launched. Before publishing, install on Windows 10/11 and check: putting a stream in full screen fills the monitor and Esc restores the window (maximized and normal); compact mode from fullscreen; the Camera button (first use, a second camera, unplugging); language changes from Desktop preferences and from the room footer/settings, including the tray menu; native screen capture and application audio still work as in 0.2.1.
+
+The installer is not code-signed, and it is not signed with the updater key: install it manually, or rebuild with the original key to publish an update for existing installations (UPDATER_SETUP.md).
+
+## Previous release validation
+
 # Validation — SimpleShare Desktop 0.2.1
 
 Validation uses isolated E: test profiles and the existing portable E: Rust/MSVC toolchain. npm, Cargo, rustup, temporary files, browser profiles, and build outputs are configured on E:. No production room or Cloudflare quota is used for the native tests.

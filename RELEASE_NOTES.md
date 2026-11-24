@@ -1,11 +1,9 @@
-# SimpleShare Desktop v0.2.1 — Clearer sharing controls
+# SimpleShare Desktop v0.3.0 — Real fullscreen, camera, and your language
 
-- Fixed desktop notifications being covered by the room when the sidebar was collapsed. Notices now appear above the visible room, and remain available in compact mode and preferences.
-- Centered the collapsed new-room (+) button.
-- Moved the collapse/expand control into the Your places sidebar, with matching labels and tooltips.
-- Added native image previews for windows and displays in the sharing selector, with lazy loading, a refresh button, and an explicit unavailable state for sources that cannot supply a preview.
-- Requested Windows borderless capture for screen sharing and previews. Windows may retain its indicator if permission is denied or another application requires it.
+- **Real fullscreen.** Choosing full screen on a shared screen or camera now fills the whole monitor. The desktop title bar, sidebar and window frame step aside, and Esc (or the page) restores the window exactly as it was. Switching to compact mode leaves fullscreen first.
+- **Camera sharing.** The room’s new Camera button works in the app. The camera is allowed only for the pinned SimpleShare website and only after you press the button; microphone requests are always refused. Compact mode gains a Camera toggle.
+- **English, Português (Brasil) and Español.** The desktop shell, sharing selectors, tray menu, quit dialog and update messages follow the room’s language, which is chosen automatically from Windows. Desktop preferences → Language changes the app and the room together and is saved in your profile.
+- **Parity with website 6.3.0.** The Audio switch next to Share screen, translated room interface and hardened room service come from the live website. Saved rooms stay in the desktop sidebar (★), so the website’s own saved-room list and its Windows app card are hidden inside the app. New room names default to the chosen language.
+- Your Audio-switch preference and language are kept in `profile.json` with your other site preferences.
 
-Install `SimpleShare_0.2.1_x64-setup.exe`, or publish the signed installer, its `.sig`, and `latest.json` for existing Tauri users to receive the update. Keep the existing updater signing key and application identifier. Saved names, rooms, and preferences stay in AppData.
-
-For a manual source update from v0.2.0, use `changed-files-upload` or the changed-files ZIP. No Electron migration or new signing key is needed. See `DELETED_FILES.txt` for any removals.
+Install `SimpleShare_0.3.0_x64-setup.exe` over the existing version; saved names, rooms and preferences stay in AppData. Existing installations update automatically only from a release whose installer is signed with the original updater key (see UPDATER_SETUP.md).

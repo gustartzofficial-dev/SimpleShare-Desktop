@@ -3,6 +3,15 @@
 Use the existing **gustartzofficial-dev/SimpleShare-Desktop** repository. Keep its Releases and history. Replace the Electron source using `REMOVE_OLD_ELECTRON_FILES.txt` and the clean source upload; GitHub web uploads do not delete obsolete files.
 
 
+## Publishing v0.3.0
+
+The supplied `SimpleShare_0.3.0_x64-setup.exe` installs and runs normally, but it was built without your private updater key, so it has no `.sig` and cannot be served to existing installations through `latest.json`. You have two options:
+
+- **Manual install only:** attach the supplied installer to a v0.3.0 release (or share it directly). People install it over 0.2.1; their AppData is kept. Do not publish a `latest.json` for it.
+- **Automatic updates for existing users (recommended):** upload the changed source files, then build a signed installer with the original key, on Windows (`npm ci`, set `TAURI_SIGNING_PRIVATE_KEY`, run `npm run tauri -- build --target x86_64-pc-windows-msvc --bundles nsis --ci`) or with your GitHub Actions release workflow. Attach that installer, its `.sig`, and `latest.json`, and publish it as the latest normal release.
+
+Never generate a new signing key: existing installations only accept updates signed with the original one.
+
 ## Updating an existing Tauri v0.2.0 installation to v0.2.1
 
 Reuse the original signing key and GitHub Actions secret. Upload the contents of changed-files-upload over the existing desktop repository, then create release v0.2.1. Attach SimpleShare_0.2.1_x64-setup.exe, its .sig, and latest.json; publish it as the latest normal release. Existing Tauri clients can then receive it through their updater. This update keeps saved AppData and does not require removing the Electron folders again. The initial migration instructions below apply only to Electron users.

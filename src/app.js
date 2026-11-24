@@ -1,6 +1,7 @@
 import {invoke} from '@tauri-apps/api/core';
 import {listen} from '@tauri-apps/api/event';
 import {getCurrentWindow} from '@tauri-apps/api/window';
+import {t,setLanguage,translate} from './i18n.js';
 const stateCallbacks=new Set(),previewCallbacks=new Set();
 await listen('shell-state',event=>stateCallbacks.forEach(callback=>callback(event.payload)));
 await listen('shell-preview',event=>previewCallbacks.forEach(callback=>callback(event.payload)));
@@ -9,7 +10,8 @@ window.desktop={command:(name,payload)=>invoke('shell_command',{name,payload:pay
 const $ = (id) => document.getElementById(id);
 let state,
   favoriteKey = '',
-  recentKey = '';
+  recentKey = '',
+  language = '';
 function feedback(message) {
   $('feedbackText').textContent = message || '';
   $('feedback').hidden = !message;
@@ -19,10 +21,10 @@ function feedback(message) {
 async function command(name, payload) {
   try {
     const result = await window.desktop.command(name, payload);
-    if (!result?.ok) feedback(result?.error || 'The action could not finish. Try again.');
+    if (!result?.ok) feedback(result?.error || t('feedback.failed'));
     return result;
   } catch {
-    feedback('The desktop connection was interrupted. Reopen the app.');
+    feedback(t('feedback.interrupted'));
   }
 }
 function button(label, className, callback, aria) {
@@ -39,7 +41,7 @@ function roomItem(room, editable) {
   row.dataset.url = room.url;
   const open = button('', 'room-link', () => command('navigate', room.url));
   open.title = room.url;
-  open.setAttribute('aria-label','Open '+room.name);
+  open.setAttribute('aria-label',t('room.open',{name:room.name}));
   const avatar = document.createElement('span');
   avatar.className = 'room-avatar';
   avatar.textContent = room.name.slice(0, 1).toUpperCase();
@@ -58,7 +60,7 @@ function roomItem(room, editable) {
           input.className = 'rename-input';
           input.value = room.name;
           input.maxLength = 48;
-          input.setAttribute('aria-label', 'Saved room name');
+          input.setAttribute('aria-label', t('room.nameLabel'));
           row.replaceChildren(input);
           input.focus();
           input.select();
@@ -80,11 +82,11 @@ function roomItem(room, editable) {
           });
           input.addEventListener('blur', save);
         },
-        'Rename ' + room.name,
+        t('room.rename', { name: room.name }),
       ),
     );
     row.append(
-      button('×', 'room-edit', () => command('remove-favorite', room.url), 'Remove ' + room.name),
+      button('×', 'room-edit', () => command('remove-favorite', room.url), t('room.remove', { name: room.name })),
     );
   }
   return row;
@@ -93,12 +95,21 @@ function render(value) {
   if (!value) return;
   const previousNotice=state?.notice;
   state = value;
+  if (state.language !== language) {
+    language = state.language;
+    setLanguage(language);
+    translate();
+    // Labels built from the saved lists are language-dependent too.
+    favoriteKey = '';
+    recentKey = '';
+  }
+  $('languagePreference').value = state.languagePreference || 'auto';
   document.body.classList.toggle('live-visible',!state.compact&&!state.overlay&&!state.loading&&!state.loadError);
   document.body.classList.toggle('sidebar-collapsed',state.data.prefs.sidebarCollapsed);
   $('sidebarToggle').setAttribute('aria-expanded',String(!state.data.prefs.sidebarCollapsed));
   $('sidebarToggle').textContent=state.data.prefs.sidebarCollapsed?'›':'‹';
-  $('sidebarToggle').setAttribute('aria-label',(state.data.prefs.sidebarCollapsed?'Expand':'Collapse')+' Your places');
-  $('sidebarToggle').title=(state.data.prefs.sidebarCollapsed?'Expand':'Collapse')+' Your places';
+  $('sidebarToggle').setAttribute('aria-label',t(state.data.prefs.sidebarCollapsed?'sidebar.expand':'sidebar.collapse'));
+  $('sidebarToggle').title=t(state.data.prefs.sidebarCollapsed?'sidebar.expand':'sidebar.collapse');
   $('sidebarToggle').hidden=state.compact;
   $('profilePath').textContent=state.profilePath;
   $('updateStatus').textContent=state.updateStatus;
@@ -115,15 +126,14 @@ function render(value) {
   $('preferences').hidden = state.overlay !== 'preferences';
   $('windowTitle').textContent = state.snapshot?.room
     ? state.snapshot.title
-    : 'Your people, a little closer.';
-  $('compactToggle').setAttribute('aria-label', state.compact ? 'Expand room' : 'Compact mode');
-  $('compactToggle').title = state.compact ? 'Expand room' : 'Compact mode';
+    : t('shell.tagline');
+  $('compactToggle').setAttribute('aria-label', t(state.compact ? 'shell.expandRoom' : 'shell.compact'));
+  $('compactToggle').title = t(state.compact ? 'shell.expandRoom' : 'shell.compact');
   $('saveCurrent').disabled = !state.snapshot?.room;
-  $('saveCurrent').textContent = state.data.favorites.some(
-    (room) => room.url === state.snapshot?.url,
-  )
-    ? '★'
-    : '☆';
+  const saved = state.data.favorites.some((room) => room.url === state.snapshot?.url);
+  $('saveCurrent').textContent = saved ? '★' : '☆';
+  $('saveCurrent').title = t(saved ? 'shell.unsaveRoom' : 'shell.saveRoom');
+  $('saveCurrent').setAttribute('aria-label', $('saveCurrent').title);
   const nextFavorites = JSON.stringify(state.data.favorites);
   if (favoriteKey !== nextFavorites) {
     favoriteKey = nextFavorites;
@@ -139,12 +149,12 @@ function render(value) {
   $('favoriteCount').textContent = state.data.favorites.length;
   $('favoritesEmpty').hidden = state.data.favorites.length > 0;
   $('recentEmpty').hidden = state.data.recent.length > 0;
-  $('compactRoom').textContent = state.snapshot?.room ? state.snapshot.title : 'Your room';
+  $('compactRoom').textContent = state.snapshot?.room ? state.snapshot.title : t('compact.room');
   $('compactStatus').textContent = state.snapshot?.sharing
-    ? 'Sharing'
+    ? t('compact.sharing')
     : state.snapshot?.room
       ? state.snapshot.status
-      : 'Choose a room';
+      : t('compact.chooseRoom');
   const names = state.snapshot?.streamers || [];
   $('streamerCount').textContent = names.length;
   $('compactStreamers').replaceChildren(
@@ -160,18 +170,20 @@ function render(value) {
   $('compactStop').hidden = !state.snapshot?.sharing;
   $('compactShare').disabled = !state.snapshot?.canShare;
   $('compactShare').hidden = !state.snapshot?.room || state.snapshot?.sharing;
+  const camera = Boolean(state.snapshot?.camera);
+  $('compactCamera').hidden = !state.snapshot?.room || (!camera && !state.snapshot?.canCamera);
+  $('compactCamera').disabled = !camera && !state.snapshot?.canCamera;
+  $('compactCamera').setAttribute('aria-pressed', String(camera));
+  $('compactCamera').classList.toggle('on', camera);
+  $('compactCamera').textContent = t(camera ? 'compact.cameraOn' : 'compact.cameraOff');
   $('previewLive').hidden = !state.snapshot?.sharing;
-  $('previewHint').textContent = state.snapshot?.sharing
-    ? 'Preparing your local preview…'
-    : 'Share a screen to see your preview here.';
+  $('previewHint').textContent = t(state.snapshot?.sharing ? 'compact.preparing' : 'compact.previewHint');
   if (!state.snapshot?.sharing) showPreview(null);
   $('qualityProfile').value = state.data.prefs.profile;
   for (const key of ['alwaysOnTop', 'closeToTray', 'reopenLastRoom'])
     $(key).checked = state.data.prefs[key];
-  $('audioSupport').textContent = state.nativeAudioSupported
-    ? 'Native process audio is available on this Windows device.'
-    : 'This device supports video capture. Scoped application audio requires Windows x64, build 20348 or newer.';
-  $('version').textContent = state.version;
+  $('audioSupport').textContent = t(state.nativeAudioSupported ? 'prefs.audioSupported' : 'prefs.audioUnsupported');
+  $('versionLine').textContent = t('prefs.version', { version: state.version });
   if (state.notice) feedback(state.notice);
   else if(previousNotice) feedback('');
 }
@@ -208,6 +220,10 @@ $('quit').addEventListener('click', () => command('quit'));
 $('retry').addEventListener('click', () => command('retry'));
 $('compactStop').addEventListener('click', () => command('room-action', 'stop'));
 $('compactShare').addEventListener('click', () => command('room-action', 'share'));
+$('compactCamera').addEventListener('click', () => command('room-action', 'camera'));
+$('languagePreference').addEventListener('change', () =>
+  command('language', $('languagePreference').value),
+);
 $('feedbackClose').addEventListener('click', () => {
   feedback('');
   command('dismiss-notice');

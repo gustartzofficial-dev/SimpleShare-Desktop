@@ -1,12 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod capture_picker;
 mod gpu_scale;
+mod i18n;
 mod profile;
 mod qa_fixture;
 #[cfg(test)]
 mod update_tests;
 mod windows_audio;
 mod windows_video;
+use i18n::{tr, tr_with};
 use profile::{label, room_url, trusted, Profile, SITE};
 use serde_json::{json, Value};
 use std::{collections::HashMap, path::PathBuf, sync::Mutex, time::Duration};
@@ -40,9 +42,18 @@ struct Inner {
     update: Option<tauri_plugin_updater::Update>,
     update_status: String,
     quit_token: Option<String>,
+    // True while the live page shows an element in fullscreen (a shared screen or camera).
+    fullscreen: bool,
+}
+struct TrayItems {
+    show: tauri::menu::MenuItem<tauri::Wry>,
+    compact: tauri::menu::MenuItem<tauri::Wry>,
+    stop: tauri::menu::MenuItem<tauri::Wry>,
+    quit: tauri::menu::MenuItem<tauri::Wry>,
 }
 struct AppState {
     inner: Mutex<Inner>,
+    tray: Mutex<Option<TrayItems>>,
     audio: windows_audio::Audio,
     video: windows_video::Video,
     origin: String,
@@ -67,13 +78,42 @@ fn local_page(u: &url::Url) -> bool {
             && u.host_str() == Some("127.0.0.1")
             && u.port() == Some(1420))
 }
+fn language_of(s: &Inner) -> &'static str {
+    i18n::resolve(
+        s.profile
+            .data
+            .site_preferences
+            .get("simpleshare-lang")
+            .map(String::as_str),
+    )
+}
+fn language(app: &tauri::AppHandle) -> &'static str {
+    language_of(&app.state::<AppState>().inner.lock().unwrap())
+}
+fn localize_tray(app: &tauri::AppHandle) {
+    let lang = language(app);
+    if let Some(items) = app.state::<AppState>().tray.lock().unwrap().as_ref() {
+        let _ = items.show.set_text(tr(lang, "tray.show"));
+        let _ = items.compact.set_text(tr(lang, "tray.compact"));
+        let _ = items.stop.set_text(tr(lang, "tray.stop"));
+        let _ = items.quit.set_text(tr(lang, "tray.quit"));
+    }
+}
+fn localized_default(url: &str, lang: &str) -> String {
+    let name = profile::default_name(url);
+    if let Some(rest) = name.strip_prefix("Room ") {
+        format!("{} {rest}", tr(lang, "room.default"))
+    } else {
+        tr(lang, "room.saved").into()
+    }
+}
 fn state_value(app: &tauri::AppHandle) -> Value {
     let maximized = app
         .get_window("main")
         .is_some_and(|w| w.is_maximized().unwrap_or(false));
     let state = app.state::<AppState>();
     let s = state.inner.lock().unwrap();
-    json!({"version":app.package_info().version.to_string(),"compact":s.compact,"overlay":s.overlay,"loading":s.loading,"loadError":s.error,"notice":s.notice,"snapshot":s.snapshot,"data":s.profile.data,"nativeAudioSupported":true,"profilePath":s.profile.directory.display().to_string(),"updateStatus":s.update_status,"updateAvailable":s.update.as_ref().map(|u|u.version.clone()),"maximized":maximized})
+    json!({"version":app.package_info().version.to_string(),"language":language_of(&s),"languagePreference":s.profile.data.site_preferences.get("simpleshare-lang").cloned().unwrap_or_else(||"auto".into()),"fullscreen":s.fullscreen,"compact":s.compact,"overlay":s.overlay,"loading":s.loading,"loadError":s.error,"notice":s.notice,"snapshot":s.snapshot,"data":s.profile.data,"nativeAudioSupported":true,"profilePath":s.profile.directory.display().to_string(),"updateStatus":s.update_status,"updateAvailable":s.update.as_ref().map(|u|u.version.clone()),"maximized":maximized})
 }
 fn send_state(app: &tauri::AppHandle) {
     let _ = app.emit_to("shell", "shell-state", state_value(app));
@@ -97,16 +137,20 @@ fn layout(app: &tauri::AppHandle) {
     } else {
         216.0
     };
-    let hidden = compact || !s.overlay.is_empty() || s.loading || !s.error.is_empty();
+    let fullscreen = s.fullscreen && !compact;
+    let hidden = !fullscreen
+        && (compact || !s.overlay.is_empty() || s.loading || !s.error.is_empty());
     drop(s);
     if let Some(shell) = app.get_webview("shell") {
         let _ = shell.set_size(LogicalSize::new(width, height));
     }
     if let Some(live) = app.get_webview("live") {
-        let _ = live.set_position(LogicalPosition::new(sidebar, 52.0));
+        // In fullscreen the room covers the whole window, hiding the title bar and sidebar.
+        let (left, top) = if fullscreen { (0.0, 0.0) } else { (sidebar, 52.0) };
+        let _ = live.set_position(LogicalPosition::new(left, top));
         let _ = live.set_size(LogicalSize::new(
-            (width - sidebar).max(1.0),
-            (height - 52.0).max(1.0),
+            (width - left).max(1.0),
+            (height - top).max(1.0),
         ));
         if hidden {
             let _ = live.hide();
@@ -118,6 +162,92 @@ fn layout(app: &tauri::AppHandle) {
             json!(notice)
         ));
     }
+}
+// Mirrors element fullscreen in the live page onto the native window, so a fullscreen stream
+// fills the monitor instead of the area inside the desktop chrome.
+fn set_live_fullscreen(app: &tauri::AppHandle, on: bool) {
+    let state = app.state::<AppState>();
+    let mut s = state.inner.lock().unwrap();
+    if s.fullscreen == on || (on && s.compact) {
+        return;
+    }
+    s.fullscreen = on;
+    drop(s);
+    if let Some(window) = app.get_window("main") {
+        let _ = window.set_fullscreen(on);
+        if on {
+            let _ = window.set_focus();
+        }
+    }
+    layout(app);
+    send_state(app);
+}
+fn exit_live_fullscreen(app: &tauri::AppHandle) {
+    if let Some(live) = app.get_webview("live") {
+        let _ = live.eval("document.fullscreenElement&&document.exitFullscreen().catch(()=>{})");
+    }
+    set_live_fullscreen(app, false);
+}
+#[cfg(windows)]
+fn attach_live_handlers(app: &tauri::AppHandle, live: &Webview) -> tauri::Result<()> {
+    use webview2_com::{
+        take_pwstr, ContainsFullScreenElementChangedEventHandler,
+        Microsoft::Web::WebView2::Win32::{
+            COREWEBVIEW2_PERMISSION_KIND, COREWEBVIEW2_PERMISSION_KIND_CAMERA,
+            COREWEBVIEW2_PERMISSION_KIND_MICROPHONE, COREWEBVIEW2_PERMISSION_STATE_ALLOW,
+            COREWEBVIEW2_PERMISSION_STATE_DENY,
+        },
+        PermissionRequestedEventHandler,
+    };
+    let fullscreen_app = app.clone();
+    let origin = app.state::<AppState>().origin.clone();
+    live.with_webview(move |view| unsafe {
+        let Ok(webview) = view.controller().CoreWebView2() else {
+            return;
+        };
+        let mut token = 0i64;
+        let handler_app = fullscreen_app.clone();
+        let _ = webview.add_ContainsFullScreenElementChanged(
+            &ContainsFullScreenElementChangedEventHandler::create(Box::new(move |sender, _| {
+                let mut value = windows::core::BOOL::default();
+                if let Some(sender) = sender {
+                    sender.ContainsFullScreenElement(&mut value)?;
+                }
+                let on = value.as_bool();
+                let app = handler_app.clone();
+                // Window changes resize the web view; never run them inside its callback.
+                std::thread::spawn(move || set_live_fullscreen(&app, on));
+                Ok(())
+            })),
+            &mut token,
+        );
+        let _ = webview.add_PermissionRequested(
+            &PermissionRequestedEventHandler::create(Box::new(move |_, args| {
+                let Some(args) = args else { return Ok(()) };
+                let mut kind = COREWEBVIEW2_PERMISSION_KIND::default();
+                args.PermissionKind(&mut kind)?;
+                let mut uri = windows::core::PWSTR::null();
+                args.Uri(&mut uri)?;
+                let uri = take_pwstr(uri);
+                let mut user = windows::core::BOOL::default();
+                args.IsUserInitiated(&mut user)?;
+                let trusted_page = uri.parse::<url::Url>().is_ok_and(|u| trusted(&u, &origin));
+                if !trusted_page || kind == COREWEBVIEW2_PERMISSION_KIND_MICROPHONE {
+                    // SimpleShare never uses a microphone; other sites get nothing.
+                    args.SetState(COREWEBVIEW2_PERMISSION_STATE_DENY)?;
+                } else if kind == COREWEBVIEW2_PERMISSION_KIND_CAMERA && user.as_bool() {
+                    // The room's Camera button was pressed in the pinned website.
+                    args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)?;
+                }
+                Ok(())
+            })),
+            &mut token,
+        );
+    })
+}
+#[cfg(not(windows))]
+fn attach_live_handlers(_: &tauri::AppHandle, _: &Webview) -> tauri::Result<()> {
+    Ok(())
 }
 fn notice(app: &tauri::AppHandle, message: impl Into<String>) {
     app.state::<AppState>().inner.lock().unwrap().notice = message.into();
@@ -133,8 +263,7 @@ fn load_watchdog(app: &tauri::AppHandle) {
             return;
         }
         s.loading = false;
-        s.error =
-            "The live website did not finish loading. Check your connection and try again.".into();
+        s.error = tr(language_of(&s), "load.failed").into();
         drop(s);
         layout(&app);
         send_state(&app);
@@ -149,6 +278,7 @@ fn compact(app: &tauri::AppHandle, on: bool) -> Result<(), String> {
     if s.compact == on {
         return Ok(());
     }
+    let was_fullscreen = s.fullscreen;
     if on {
         s.normal_size = (size.width as f64 / factor, size.height as f64 / factor);
     }
@@ -156,6 +286,9 @@ fn compact(app: &tauri::AppHandle, on: bool) -> Result<(), String> {
     let normal_size = s.normal_size;
     let always_on_top = on && s.profile.data.prefs.always_on_top;
     drop(s);
+    if on && was_fullscreen {
+        exit_live_fullscreen(app);
+    }
     // Native window calls can synchronously deliver resize/focus callbacks.
     // None may run while the callbacks' app-state mutex is held.
     if on {
@@ -178,6 +311,7 @@ fn room_action(app: &tauri::AppHandle, action: &str) -> Result<(), String> {
         "mute" => "audioBtn",
         "settings" => "settingsBtn",
         "copy" => "copyBtn",
+        "camera" => "cameraBtn",
         _ => return Err("Unknown room action".into()),
     };
     let state = app.state::<AppState>();
@@ -211,10 +345,9 @@ fn navigate(app: &tauri::AppHandle, input: &str, force: bool) -> Result<(), Stri
     let mut s = state.inner.lock().unwrap();
     if s.snapshot
         .as_ref()
-        .and_then(|v| v["sharing"].as_bool())
-        .unwrap_or(false)
+        .is_some_and(|v| v["sharing"] == true || v["camera"] == true)
     {
-        return Err("Stop your current share before opening another room".into());
+        return Err(tr(language_of(&s), "navigate.sharing").into());
     }
     s.loading = true;
     s.error.clear();
@@ -237,16 +370,17 @@ fn request_quit(app: &tauri::AppHandle) {
         .unwrap()
         .snapshot
         .as_ref()
-        .is_some_and(|s| s["sharing"] == true || s["watching"] == true);
+        .is_some_and(|s| s["sharing"] == true || s["watching"] == true || s["camera"] == true);
     if active {
         let app = app.clone();
+        let lang = language(&app);
         app.clone()
             .dialog()
-            .message("You are sharing or watching a stream. Leave the room and quit?")
-            .title("Quit SimpleShare?")
+            .message(tr(lang, "quit.message"))
+            .title(tr(lang, "quit.title"))
             .buttons(tauri_plugin_dialog::MessageDialogButtons::OkCancelCustom(
-                "Quit".into(),
-                "Stay".into(),
+                tr(lang, "quit.yes").into(),
+                tr(lang, "quit.no").into(),
             ))
             .show(move |yes| {
                 if yes {
@@ -340,6 +474,7 @@ async fn shell_command(
         "create" => navigate(&app, &uuid::Uuid::new_v4().simple().to_string(), false)?,
         "favorite" => {
             let mut s = state.inner.lock().unwrap();
+            let lang = language_of(&s);
             let url = value["url"]
                 .as_str()
                 .map(str::to_string)
@@ -348,10 +483,36 @@ async fn shell_command(
                         .as_ref()
                         .and_then(|v| v["url"].as_str().map(str::to_string))
                 })
-                .ok_or("Open a room first")?;
-            s.profile
-                .favorite(&url, value["name"].as_str(), &state.origin)?;
+                .ok_or(tr(lang, "favorite.none"))?;
+            let clean = room_url(&url, &state.origin)?;
+            let known = s.profile.data.favorites.iter().any(|r| r.url == clean);
+            let name = value["name"]
+                .as_str()
+                .filter(|n| !label(n, 48).is_empty())
+                .map(str::to_string)
+                .or_else(|| (!known).then(|| localized_default(&clean, lang)));
+            s.profile.favorite(&url, name.as_deref(), &state.origin)?;
         }
+        "language" => {
+            let choice = value.as_str().unwrap_or("auto");
+            if choice != "auto" && !i18n::LANGUAGES.contains(&choice) {
+                return Err("Unknown language".into());
+            }
+            state
+                .inner
+                .lock()
+                .unwrap()
+                .profile
+                .preference("simpleshare-lang", choice)?;
+            localize_tray(&app);
+            if let Some(view) = app.get_webview("live") {
+                let _ = view.eval(format!(
+                    "try{{localStorage.setItem('simpleshare-lang',{0});}}catch{{}}window.__ssApplyLanguage?.({0});",
+                    json!(choice)
+                ));
+            }
+        }
+        "exit-fullscreen" => exit_live_fullscreen(&app),
         "remove-favorite" => {
             let url = room_url(value.as_str().ok_or("Invalid room")?, &state.origin)?;
             let mut s = state.inner.lock().unwrap();
@@ -443,8 +604,14 @@ fn site_preferences(
     match operation.as_str() {
         "read" => Ok(json!(s.profile.data.site_preferences)),
         "save" => {
-            s.profile
-                .preference(&key.ok_or("Missing key")?, &value.ok_or("Missing value")?)?;
+            let key = key.ok_or("Missing key")?;
+            s.profile.preference(&key, &value.ok_or("Missing value")?)?;
+            drop(s);
+            if key == "simpleshare-lang" {
+                let app = webview.app_handle().clone();
+                localize_tray(&app);
+                send_state(&app);
+            }
             Ok(json!(true))
         }
         _ => Err("Unknown preference operation".into()),
@@ -460,12 +627,18 @@ fn site_state(app: tauri::AppHandle, webview: Webview, value: Value) -> Result<(
         .filter(|u| trusted(u, &state.origin))
         .ok_or("Invalid page snapshot")?;
     let room = room_url(url.as_str(), &state.origin).ok();
-    let snapshot = json!({"url":room.clone().unwrap_or(format!("{}/",state.origin)),"room":room.is_some(),"title":label(value["title"].as_str().unwrap_or("SimpleShare"),48),"status":label(value["status"].as_str().unwrap_or("Connected"),60),"sharing":value["sharing"].as_bool().unwrap_or(false),"watching":value["watching"].as_bool().unwrap_or(false),"canShare":value["canShare"].as_bool().unwrap_or(false),"theme":if value["theme"]=="light"{"light"}else{"dark"},"streamers":value["streamers"].as_array().unwrap_or(&vec![]).iter().take(10).map(|v|label(v.as_str().unwrap_or(""),48)).collect::<Vec<_>>()});
+    let snapshot = json!({"url":room.clone().unwrap_or(format!("{}/",state.origin)),"room":room.is_some(),"title":label(value["title"].as_str().unwrap_or("SimpleShare"),48),"status":label(value["status"].as_str().unwrap_or("Connected"),60),"sharing":value["sharing"].as_bool().unwrap_or(false),"watching":value["watching"].as_bool().unwrap_or(false),"canShare":value["canShare"].as_bool().unwrap_or(false),"camera":value["camera"].as_bool().unwrap_or(false),"canCamera":value["canCamera"].as_bool().unwrap_or(false),"fullscreen":value["fullscreen"].as_bool().unwrap_or(false),"theme":if value["theme"]=="light"{"light"}else{"dark"},"streamers":value["streamers"].as_array().unwrap_or(&vec![]).iter().take(10).map(|v|label(v.as_str().unwrap_or(""),48)).collect::<Vec<_>>()});
     let mut s = state.inner.lock().unwrap();
     s.snapshot = Some(snapshot);
     if let Some(room) = room {
-        if s.profile.data.last_room != room {
-            let _ = s.profile.visit(&room, &state.origin);
+        if s.profile.data.last_room != room && s.profile.visit(&room, &state.origin).is_ok() {
+            let lang = language_of(&s);
+            if let Some(recent) = s.profile.data.recent.first_mut() {
+                if recent.name == profile::default_name(&recent.url) {
+                    recent.name = localized_default(&recent.url, lang);
+                    let _ = s.profile.save();
+                }
+            }
         }
     }
     drop(s);
@@ -524,7 +697,7 @@ async fn audio_choose(app: tauri::AppHandle, webview: Webview) -> Result<String,
         "audio-picker",
         WebviewUrl::App("audio.html".into()),
     )
-    .title("Choose application sound")
+    .title(tr(language(&app), "audio.title"))
     .data_directory(state.web_data.clone())
     .inner_size(620.0, 530.0)
     .min_inner_size(500.0, 420.0)
@@ -576,7 +749,7 @@ fn picker_command(
         return Ok(s
             .picker
             .as_ref()
-            .map(|(id, list)| json!({"id":id,"sources":list}))
+            .map(|(id, list)| json!({"id":id,"sources":list,"language":language_of(&s)}))
             .unwrap_or(Value::Null));
     }
     if !matches!(name.as_str(), "select" | "cancel") {
@@ -657,7 +830,7 @@ async fn check_update(app: tauri::AppHandle, automatic: bool) {
         if automatic && !s.profile.data.prefs.auto_update {
             return;
         }
-        s.update_status = "Checking GitHub for signed updates…".into();
+        s.update_status = tr(language_of(&s), "update.checking").into();
     }
     send_state(&app);
     let result = async {
@@ -673,16 +846,23 @@ async fn check_update(app: tauri::AppHandle, automatic: bool) {
             let found = update.is_some();
             let state = app.state::<AppState>();
             let mut s = state.inner.lock().unwrap();
+            let lang = language_of(&s);
             s.update_status = update
                 .as_ref()
-                .map(|u| format!("Update {} is available", u.version))
-                .unwrap_or("You have the latest release".into());
+                .map(|u| tr_with(lang, "update.available", "version", &u.version))
+                .unwrap_or(tr(lang, "update.latest").into());
             s.update = update;
             found
         }
         Err(error) => {
-            app.state::<AppState>().inner.lock().unwrap().update_status =
-                format!("Update check unavailable: {}", error);
+            let state = app.state::<AppState>();
+            let mut s = state.inner.lock().unwrap();
+            s.update_status = tr_with(
+                language_of(&s),
+                "update.unavailable",
+                "error",
+                &error.to_string(),
+            );
             false
         }
     };
@@ -705,14 +885,15 @@ async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
     let update = {
         let state = app.state::<AppState>();
         let mut s = state.inner.lock().unwrap();
+        let lang = language_of(&s);
         if s.snapshot
             .as_ref()
-            .is_some_and(|v| v["sharing"] == true || v["watching"] == true)
+            .is_some_and(|v| v["sharing"] == true || v["watching"] == true || v["camera"] == true)
         {
-            return Err("The update waits until you finish sharing or watching".into());
+            return Err(tr(lang, "update.waitRoom").into());
         }
-        s.update_status = "Downloading and verifying the signed installer…".into();
-        s.update.clone().ok_or("Check for updates first")?
+        s.update_status = tr(lang, "update.downloading").into();
+        s.update.clone().ok_or(tr(lang, "update.checkFirst"))?
     };
     send_state(&app);
     let bytes = update
@@ -723,7 +904,7 @@ async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
         let state = app.state::<AppState>();
         let s = state.inner.lock().unwrap();
         if s.snapshot.as_ref().is_some_and(|v| v["room"] == true) {
-            return Err("Leave the room before installing the update".into());
+            return Err(tr(language_of(&s), "update.leaveRoom").into());
         }
         s.profile.save()?;
     }
@@ -755,6 +936,8 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let web_data = directory.join("webview");
     let profile = Profile::open(directory.clone(), &origin)?;
     let startup = profile.data.site_preferences.clone();
+    let startup_language =
+        i18n::resolve(startup.get("simpleshare-lang").map(String::as_str)).to_string();
     let initial = if profile.data.prefs.reopen_last_room && !profile.data.last_room.is_empty() {
         profile.data.last_room.clone()
     } else {
@@ -775,9 +958,11 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             capture_picker: None,
             video_grants: HashMap::new(),
             update: None,
-            update_status: "Updates are checked automatically while idle".into(),
+            update_status: tr(&startup_language, "update.idle").into(),
             quit_token: None,
+            fullscreen: false,
         }),
+        tray: Mutex::new(None),
         audio: Default::default(),
         video: Default::default(),
         origin: origin.clone(),
@@ -821,11 +1006,12 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         });
-    window.add_child(
+    let live = window.add_child(
         live,
         LogicalPosition::new(216.0, 52.0),
         LogicalSize::new(1104.0, 798.0),
     )?;
+    attach_live_handlers(app.handle(), &live)?;
     let handle = app.handle().clone();
     window.on_window_event(move |event| match event {
         tauri::WindowEvent::Resized(_) | tauri::WindowEvent::ScaleFactorChanged { .. } => {
@@ -850,12 +1036,27 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         }
         _ => {}
     });
-    let show = tauri::menu::MenuItem::with_id(app, "show", "Open SimpleShare", true, None::<&str>)?;
-    let mini =
-        tauri::menu::MenuItem::with_id(app, "compact", "Toggle compact mode", true, None::<&str>)?;
-    let stop = tauri::menu::MenuItem::with_id(app, "stop", "Stop sharing", true, None::<&str>)?;
-    let quit = tauri::menu::MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let lang = startup_language.as_str();
+    let show =
+        tauri::menu::MenuItem::with_id(app, "show", tr(lang, "tray.show"), true, None::<&str>)?;
+    let mini = tauri::menu::MenuItem::with_id(
+        app,
+        "compact",
+        tr(lang, "tray.compact"),
+        true,
+        None::<&str>,
+    )?;
+    let stop =
+        tauri::menu::MenuItem::with_id(app, "stop", tr(lang, "tray.stop"), true, None::<&str>)?;
+    let quit =
+        tauri::menu::MenuItem::with_id(app, "quit", tr(lang, "tray.quit"), true, None::<&str>)?;
     let menu = tauri::menu::Menu::with_items(app, &[&show, &mini, &stop, &quit])?;
+    *app.state::<AppState>().tray.lock().unwrap() = Some(TrayItems {
+        show: show.clone(),
+        compact: mini.clone(),
+        stop: stop.clone(),
+        quit: quit.clone(),
+    });
     tauri::tray::TrayIconBuilder::new()
         .icon(app.default_window_icon().unwrap().clone())
         .tooltip("SimpleShare")

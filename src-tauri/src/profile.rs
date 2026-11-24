@@ -119,6 +119,8 @@ pub fn clean_preference(key: &str, value: &str) -> Option<String> {
         "simpleshare-theme" if ["dark", "light"].contains(&value) => Some(value.into()),
         "simpleshare-muted" if ["true", "false"].contains(&value) => Some(value.into()),
         "simpleshare-sfx" if ["on", "off"].contains(&value) => Some(value.into()),
+        "simpleshare-share-audio" if ["on", "off"].contains(&value) => Some(value.into()),
+        "simpleshare-lang" if ["auto", "en", "pt-BR", "es"].contains(&value) => Some(value.into()),
         "simpleshare-volume" | "simpleshare-primary-mix" | "simpleshare-extra-mix" => {
             let max = if key.ends_with("-mix") { 100.0 } else { 1.0 };
             value

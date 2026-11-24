@@ -1,6 +1,6 @@
 # SimpleShare Desktop
 
-Simple screen sharing, with a desktop home. **Version 0.2.1** is the Windows x64 client built with **Rust and Tauri 2**. It continues the desktop migration introduced in v0.2.0.
+Simple screen sharing, with a desktop home. **Version 0.3.0** is the Windows x64 client built with **Rust and Tauri 2**. It adds real monitor-filling fullscreen for shared screens, camera sharing, and English / Português (Brasil) / Español.
 
 The app uses the [live SimpleShare website](https://simple-share-hazel.vercel.app) for rooms and streaming connections. Its desktop shell, window/display selection, screen acquisition, application audio, profile storage, tray integration, and updater are implemented locally. No separate browser window is launched.
 
@@ -10,14 +10,17 @@ The app uses the [live SimpleShare website](https://simple-share-hazel.vercel.ap
 - A small app-owned sharing selector with native window/display thumbnails and a refresh control. **Windows Graphics Capture acquires the picture directly from Rust**; the desktop client does not use browser screen acquisition or the browser screen picker.
 - Direct3D GPU scaling to the selected stream size before readback, with two shared frame buffers and acknowledgements to prevent an unlimited frame queue.
 - Native **WASAPI application-loopback audio**, including the selected process and its child processes. Choose the audio application independently from the picture. The live room's secondary audio controls remain available.
-- Compact mode with your own preview, the people sharing, and quick controls. The same room and capture remain active when switching views.
+- Compact mode with your own preview, the people sharing, and quick controls (including Camera). The same room and capture remain active when switching views.
+- Real fullscreen: a stream put in full screen fills the monitor instead of the area inside the app frame.
+- Camera sharing from the room’s Camera button. Camera access is granted only to the pinned website after you press the button; microphones are always refused.
+- English, Português (Brasil) and Español for the shell, selectors, tray and dialogs, following Windows automatically or the choice in Desktop preferences.
 - Per-user installation, persistent AppData storage, single-instance behavior, system tray controls, and signed GitHub updates.
 
 Desktop notices stay visible above the room, and the collapsible sidebar owns its expand/collapse control. Capture requests borderless mode through Windows; Windows may retain its indicator when permission is denied or another app requires it.
 
 ## Install
 
-Download `SimpleShare_0.2.1_x64-setup.exe` from [Releases](https://github.com/gustartzofficial-dev/SimpleShare-Desktop/releases). Run the installer, then open SimpleShare from the Start menu. The installer can install the Microsoft Edge WebView2 runtime when it is missing.
+Download `SimpleShare_0.3.0_x64-setup.exe` from [Releases](https://github.com/gustartzofficial-dev/SimpleShare-Desktop/releases). Run the installer, then open SimpleShare from the Start menu. The installer can install the Microsoft Edge WebView2 runtime when it is missing.
 
 Windows 11 x64 is the recommended platform. Native process-loopback audio requires Windows build 20348 or newer. Protected video, anti-cheat restrictions, exclusive-fullscreen transitions, and applications running with higher privileges can affect capture. Borderless mode can help with games that recreate their rendering window.
 
@@ -27,7 +30,7 @@ The installer does not include a Windows publisher certificate. Windows may iden
 
 Profiles are stored in **`%APPDATA%\dev.simpleshare.desktop\`**, outside the application directory:
 
-- `profile.json`: display name, safe room preferences, favorites, recent rooms, and desktop preferences.
+- `profile.json`: display name, safe room preferences (including language and the Audio switch), favorites, recent rooms, and desktop preferences.
 - `webview\`: the persistent WebView2 website profile.
 
 Keep the application identifier `dev.simpleshare.desktop` unchanged in future builds. Reinstalling or changing build folders uses the same profile. Leave the uninstaller's option to remove application data unchecked when you want to retain it. The app opens the profile folder from Desktop preferences. A malformed JSON profile is preserved as `profile-invalid-<id>.json` before a fresh profile is created.

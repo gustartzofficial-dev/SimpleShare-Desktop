@@ -24,7 +24,7 @@ pub async fn capture_choose(
         "capture-picker",
         WebviewUrl::App("capture.html".into()),
     )
-    .title("Share a window or display")
+    .title(crate::i18n::tr(crate::language(&app), "capture.title"))
     .inner_size(760.0, 620.0)
     .min_inner_size(640.0, 520.0)
     .data_directory(state.web_data.clone())
@@ -80,7 +80,9 @@ pub fn capture_picker_command(
         .ok_or("The screen selector expired")?
         .clone();
     if name == "ready" {
-        return Ok(json!({"sources":list,"audioSources":sound,"audio":wants_audio}));
+        return Ok(
+            json!({"sources":list,"audioSources":sound,"audio":wants_audio,"language":crate::language_of(&s)}),
+        );
     }
     if !matches!(name.as_str(), "select" | "cancel") {
         return Err("Unknown capture selection".into());
