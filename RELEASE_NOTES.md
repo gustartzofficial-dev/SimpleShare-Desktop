@@ -1,3 +1,10 @@
+# SimpleShare Desktop v0.3.1 — Sidebar hotfix
+
+- Fixed the collapsed sidebar’s New room button: it now shows only a centered plus icon in English, Português (Brasil), and Español.
+- Kept the full translated label when expanded, plus a translated tooltip and accessible button name when collapsed.
+
+Install `SimpleShare_0.3.1_x64-setup.exe` over your current version. Saved names, rooms and preferences stay in AppData.
+
 # SimpleShare Desktop v0.3.0 — Real fullscreen, camera, and your language
 
 - **Real fullscreen.** Choosing full screen on a shared screen or camera now fills the whole monitor. The desktop title bar, sidebar and window frame step aside, and Esc (or the page) restores the window exactly as it was. Switching to compact mode leaves fullscreen first.

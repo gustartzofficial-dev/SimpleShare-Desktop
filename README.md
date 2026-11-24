@@ -1,8 +1,10 @@
 # SimpleShare Desktop
 
-Simple screen sharing, with a desktop home. **Version 0.3.0** is the Windows x64 client built with **Rust and Tauri 2**. It adds real monitor-filling fullscreen for shared screens, camera sharing, and English / Português (Brasil) / Español.
+Simple screen sharing, with a desktop home. **Version 0.3.1** is the Windows x64 client built with **Rust and Tauri 2**. It adds real monitor-filling fullscreen for shared screens, camera sharing, and English / Português (Brasil) / Español.
 
 The app uses the [live SimpleShare website](https://simple-share-hazel.vercel.app) for rooms and streaming connections. Its desktop shell, window/display selection, screen acquisition, application audio, profile storage, tray integration, and updater are implemented locally. No separate browser window is launched.
+
+Version 0.3.1 fixes the collapsed New room button in every supported language: only the centered plus icon remains visible, with a translated tooltip and accessible name.
 
 ## Desktop features
 

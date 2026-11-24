@@ -1,3 +1,12 @@
+# v0.3.1 sidebar hotfix validation
+
+- Signed Windows x64 NSIS installer built successfully with the original updater key.
+- Installer signature verification passed; modifying the installer was correctly rejected.
+- JavaScript syntax checks passed (`npm run check`).
+- Rendered checks passed for English, Português (Brasil), and Español, in both expanded and collapsed states.
+- Collapsed button is 44 × 44 pixels with a centered plus; its translated label is hidden, while its translated accessible name and tooltip remain. Expanded labels remain visible.
+- This hotfix changes sidebar presentation only; native capture and room connection behavior were not retested.
+
 # Validation — SimpleShare Desktop 0.3.0
 
 Built on Linux, 2026-11-23, by cross-compiling for Windows x64 (`x86_64-pc-windows-gnu`, Rust 1.97.1 with the standard library built from source, MinGW-w64 linker) and packaging with the Tauri CLI 2.12.4 NSIS bundler and NSIS 3.09. The Rust code type-checks for Windows with no warnings. The frontend bridge and local pages build with Vite/esbuild. The installer bundles `WebView2Loader.dll`, which the GNU build loads dynamically; the official MSVC build links it statically instead.
