@@ -30,6 +30,7 @@ pub async fn capture_choose(
     .data_directory(state.web_data.clone())
     .on_navigation(local_page)
     .on_new_window(|_, _| tauri::webview::NewWindowResponse::Deny);
+    #[cfg(windows)]
     if let Some(parent) = app.get_window("main") {
         builder = builder.owner_raw(parent.hwnd().map_err(|e| e.to_string())?);
     }

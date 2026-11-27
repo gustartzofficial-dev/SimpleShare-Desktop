@@ -1,5 +1,5 @@
 SimpleShare Desktop — third-party source license notices
-Generated from the locked Windows dependency graph. Dependencies keep their own licenses.
+Generated from the locked platform dependency graph. Dependencies keep their own licenses.
 
 
 ========================================================================

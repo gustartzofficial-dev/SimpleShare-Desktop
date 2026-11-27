@@ -1,0 +1,1 @@
+{"identifier":"installer","description":"Local branded AppImage installer only","webviews":["installer"],"permissions":["allow-installer-command"]}

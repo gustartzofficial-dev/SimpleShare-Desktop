@@ -1,8 +1,9 @@
 import {execFileSync} from 'node:child_process';
 import {readFile,readdir,writeFile} from 'node:fs/promises';
 import path from 'node:path';
-const metadata=JSON.parse(execFileSync('cargo',['metadata','--locked','--format-version','1','--filter-platform','x86_64-pc-windows-msvc','--manifest-path','src-tauri/Cargo.toml'],{encoding:'utf8',maxBuffer:32*1024*1024}));
-const sections=['SimpleShare Desktop — third-party source license notices\nGenerated from the locked Windows dependency graph. Dependencies keep their own licenses.\n'];
+const platform=process.env.TAURI_ENV_TARGET_TRIPLE||(process.platform==='linux'?'x86_64-unknown-linux-gnu':'x86_64-pc-windows-msvc');
+const metadata=JSON.parse(execFileSync('cargo',['metadata','--locked','--format-version','1','--filter-platform',platform,'--manifest-path','src-tauri/Cargo.toml'],{encoding:'utf8',maxBuffer:32*1024*1024}));
+const sections=['SimpleShare Desktop — third-party source license notices\nGenerated from the locked platform dependency graph. Dependencies keep their own licenses.\n'];
 for(const pkg of metadata.packages.filter(p=>p.source).sort((a,b)=>a.name.localeCompare(b.name))){
  const dir=path.dirname(pkg.manifest_path),names=(await readdir(dir)).filter(n=>/^(LICENSE|LICENCE|COPYING|COPYRIGHT|UNLICENSE)/i.test(n));
  if(pkg.license_file&&!names.includes(pkg.license_file))names.push(pkg.license_file);

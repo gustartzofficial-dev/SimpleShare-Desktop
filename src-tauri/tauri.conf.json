@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "SimpleShare",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "identifier": "dev.simpleshare.desktop",
   "build": {
     "beforeBuildCommand": "npm run build",
@@ -35,14 +35,23 @@
         "installMode": "currentUser",
         "displayLanguageSelector": false,
         "languages": [
-          "English"
-        ]
+          "English",
+          "PortugueseBR",
+          "Spanish"
+        ],
+        "headerImage": "installer/header.bmp",
+        "sidebarImage": "installer/sidebar.bmp",
+        "installerIcon": "icons/icon.ico"
       },
       "webviewInstallMode": {
         "type": "downloadBootstrapper",
         "silent": true
       }
-    }
+    },
+    "publisher": "GustartzOfficial",
+    "category": "SocialNetworking",
+    "shortDescription": "Share a screen. Keep good company.",
+    "longDescription": "SimpleShare brings your rooms, native screen selection, application audio and a compact view into one desktop home."
   },
   "plugins": {
     "updater": {

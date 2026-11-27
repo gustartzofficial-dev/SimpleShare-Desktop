@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-site-state"
+description = "Enables the site_state command without any pre-configured scope."
+commands.allow = ["site_state"]
+
+[[permission]]
+identifier = "deny-site-state"
+description = "Denies the site_state command without any pre-configured scope."
+commands.deny = ["site_state"]

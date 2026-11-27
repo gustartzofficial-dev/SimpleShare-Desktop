@@ -25,7 +25,18 @@ fn system() -> &'static str {
 }
 #[cfg(not(windows))]
 fn system() -> &'static str {
-    "en"
+    let locale = ["LC_ALL", "LC_MESSAGES", "LANG"]
+        .iter()
+        .find_map(|key| std::env::var(key).ok().filter(|v| !v.is_empty()))
+        .unwrap_or_default()
+        .to_lowercase();
+    if locale.starts_with("pt") {
+        "pt-BR"
+    } else if locale.starts_with("es") {
+        "es"
+    } else {
+        "en"
+    }
 }
 
 pub fn tr(lang: &str, key: &str) -> &'static str {
@@ -41,15 +52,27 @@ pub fn tr(lang: &str, key: &str) -> &'static str {
         }
     };
     match key {
-        "tray.show" => pick("Open SimpleShare", "Abrir o SimpleShare", "Abrir SimpleShare"),
+        "tray.show" => pick(
+            "Open SimpleShare",
+            "Abrir o SimpleShare",
+            "Abrir SimpleShare",
+        ),
         "tray.compact" => pick(
             "Toggle compact mode",
             "Alternar modo compacto",
             "Alternar modo compacto",
         ),
-        "tray.stop" => pick("Stop sharing", "Parar de compartilhar", "Dejar de compartir"),
+        "tray.stop" => pick(
+            "Stop sharing",
+            "Parar de compartilhar",
+            "Dejar de compartir",
+        ),
         "tray.quit" => pick("Quit", "Sair", "Salir"),
-        "quit.title" => pick("Quit SimpleShare?", "Sair do SimpleShare?", "¿Salir de SimpleShare?"),
+        "quit.title" => pick(
+            "Quit SimpleShare?",
+            "Sair do SimpleShare?",
+            "¿Salir de SimpleShare?",
+        ),
         "quit.message" => pick(
             "You are sharing or watching a stream. Leave the room and quit?",
             "Você está compartilhando ou assistindo uma transmissão. Sair da sala e fechar o app?",
@@ -67,7 +90,11 @@ pub fn tr(lang: &str, key: &str) -> &'static str {
             "Pare o compartilhamento atual antes de abrir outra sala",
             "Detén lo que compartes antes de abrir otra sala",
         ),
-        "favorite.none" => pick("Open a room first", "Abra uma sala primeiro", "Abre una sala primero"),
+        "favorite.none" => pick(
+            "Open a room first",
+            "Abra uma sala primeiro",
+            "Abre una sala primero",
+        ),
         "audio.title" => pick(
             "Choose application sound",
             "Escolha o som do aplicativo",

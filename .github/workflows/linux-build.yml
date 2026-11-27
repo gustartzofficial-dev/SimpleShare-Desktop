@@ -1,0 +1,57 @@
+name: Build Linux x64 release
+on:
+  push:
+    branches: ['codex/linux-release-0.4.0']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      CARGO_HOME: ${{ github.workspace }}/.local/cargo
+      RUSTUP_HOME: ${{ github.workspace }}/.local/rustup
+      CARGO_TARGET_DIR: ${{ github.workspace }}/.local/target
+      npm_config_cache: ${{ github.workspace }}/.local/npm-cache
+      XDG_CACHE_HOME: ${{ github.workspace }}/.local/cache
+      TMPDIR: ${{ runner.temp }}
+      APPIMAGE_EXTRACT_AND_RUN: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install Linux build and media dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential curl file libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-pipewire gstreamer1.0-nice pulseaudio-utils
+      - name: Install Rust in the job workspace
+        run: |
+          mkdir -p "$CARGO_HOME" "$RUSTUP_HOME" "$XDG_CACHE_HOME"
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o "$RUNNER_TEMP/rustup-init.sh"
+          sh "$RUNNER_TEMP/rustup-init.sh" -y --profile minimal --default-toolchain stable
+          echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+      - name: Build frontend and test Linux Rust code
+        run: |
+          npm ci
+          npm run check
+          npm run build
+          cargo test --locked --manifest-path src-tauri/Cargo.toml --target x86_64-unknown-linux-gnu
+      - name: Build AppImage and Debian package
+        # Signing stays on the owner's PC. The private updater key is never uploaded.
+        run: npm run tauri -- build --ci --target x86_64-unknown-linux-gnu --config src-tauri/tauri.linux.conf.json --config '{"bundle":{"createUpdaterArtifacts":false}}'
+      - name: Collect Linux files
+        run: |
+          mkdir -p .local/linux-release
+          cp "$CARGO_TARGET_DIR"/x86_64-unknown-linux-gnu/release/bundle/appimage/*.AppImage .local/linux-release/
+          cp "$CARGO_TARGET_DIR"/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb .local/linux-release/
+          cp Install-SimpleShare.sh .local/linux-release/
+          chmod +x .local/linux-release/Install-SimpleShare.sh
+          sha256sum .local/linux-release/*.AppImage .local/linux-release/*.deb > .local/linux-release/LINUX_BUILD_SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SimpleShare-linux-x64
+          path: .local/linux-release/*
+          retention-days: 14
+          if-no-files-found: error

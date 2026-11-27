@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-site-preferences"
+description = "Enables the site_preferences command without any pre-configured scope."
+commands.allow = ["site_preferences"]
+
+[[permission]]
+identifier = "deny-site-preferences"
+description = "Denies the site_preferences command without any pre-configured scope."
+commands.deny = ["site_preferences"]
