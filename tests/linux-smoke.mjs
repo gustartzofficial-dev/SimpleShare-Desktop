@@ -6,7 +6,11 @@ import assert from 'node:assert/strict';
 assert.equal(process.platform,'linux','Run this smoke check on Linux under a desktop/Xvfb session');
 const profile=path.resolve('.local/qa/linux-smoke'),executable=path.join(process.env.CARGO_TARGET_DIR||'.local/target','x86_64-unknown-linux-gnu/release/simpleshare-desktop');
 await mkdir(profile,{recursive:true});
-const server=createServer((request,response)=>{response.setHeader('Content-Type','text/html');response.end(`<!doctype html><html><body><input id="myName"><div id="people"></div><button id="shareBtn">Share</button><button id="stopBtn" hidden>Stop</button><script>if(typeof RTCPeerConnection==='function'&&typeof AudioContext==='function'&&typeof navigator.mediaDevices?.getDisplayMedia==='function'){history.replaceState(null,'','?room=abcdef1234567890abcdef12');window.__simpleShareNative.savePreference('simpleshare-name','Linux native smoke');}</script></body></html>`);});
+let diagnostics={},requests=0;
+const server=createServer((request,response)=>{
+ if(request.url==='/probe'){let body='';request.on('data',data=>body+=data);request.on('end',()=>{try{diagnostics=JSON.parse(body);}catch{}response.end('ok');});return;}
+ requests++;response.setHeader('Content-Type','text/html');response.end(`<!doctype html><html><body><input id="myName"><div id="people"></div><button id="shareBtn">Share</button><button id="stopBtn" hidden>Stop</button><script>fetch('/probe',{method:'POST',body:JSON.stringify({rtc:typeof RTCPeerConnection,audio:typeof AudioContext,display:typeof navigator.mediaDevices?.getDisplayMedia,native:typeof window.__simpleShareNative})});if(typeof RTCPeerConnection==='function'&&typeof AudioContext==='function'&&typeof navigator.mediaDevices?.getDisplayMedia==='function'){history.replaceState(null,'','?room=abcdef1234567890abcdef12');window.__simpleShareNative.savePreference('simpleshare-name','Linux native smoke');}</script></body></html>`);
+});
 await new Promise(resolve=>server.listen(1439,'127.0.0.1',resolve));
 let stderr='';const app=spawn(executable,['--qa'],{env:{...process.env,SIMPLESHARE_QA_URL:'http://127.0.0.1:1439',SIMPLESHARE_QA_PROFILE:profile,SIMPLESHARE_LINUX_SMOKE:'1',WEBKIT_DISABLE_DMABUF_RENDERER:'1'},stdio:['ignore','ignore','pipe']});
 app.stderr.on('data',data=>{stderr=(stderr+data).slice(-16000);});
@@ -23,7 +27,8 @@ try{
   }catch(error){if(error.message?.includes('Linux compact'))throw error;}
   await new Promise(resolve=>setTimeout(resolve,250));
  }
- assert(reached,'Linux room webview must load the native bridge and persist a preference: '+stderr);
+ if(!reached){for(const file of ['profile.json','desktop-smoke.json'])console.log(file,await readFile(path.join(profile,file),'utf8').catch(()=>'(missing)'));}
+ assert(reached,'Linux room webview must load the native bridge and persist a preference: '+JSON.stringify({requests,diagnostics})+'\n'+stderr);
  assert(!stderr.includes('panicked at'),stderr);
  console.log('PASS: Linux GTK shell and room started; native IPC saved the isolated profile.');
 }finally{
