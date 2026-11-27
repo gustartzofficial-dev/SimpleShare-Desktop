@@ -27,7 +27,7 @@ jobs:
       - name: Install Linux build and media dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential curl file libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-pipewire gstreamer1.0-nice pulseaudio-utils
+          sudo apt-get install -y build-essential curl file libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev libfuse2 gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-pipewire gstreamer1.0-nice pulseaudio-utils xvfb dbus-x11
       - name: Install Rust in the job workspace
         run: |
           mkdir -p "$CARGO_HOME" "$RUSTUP_HOME" "$XDG_CACHE_HOME"
@@ -52,6 +52,8 @@ jobs:
       - name: Build AppImage and Debian package
         # Signing stays on the owner's PC. The private updater key is never uploaded.
         run: npm run tauri -- build --ci --target x86_64-unknown-linux-gnu --config src-tauri/tauri.linux.conf.json --config '{"bundle":{"createUpdaterArtifacts":false}}'
+      - name: Smoke test Linux desktop and native IPC
+        run: dbus-run-session -- xvfb-run -a node tests/linux-smoke.mjs
       - name: Collect Linux files
         run: |
           mkdir -p .local/linux-release

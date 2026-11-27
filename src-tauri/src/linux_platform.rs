@@ -1,7 +1,7 @@
 use gtk::prelude::*;
 use std::cell::RefCell;
 use tauri::Manager;
-use webkit2gtk::{PermissionRequestExt, UserMediaPermissionRequestExt, WebViewExt};
+use webkit2gtk::{PermissionRequestExt, SettingsExt, UserMediaPermissionRequestExt, WebViewExt};
 thread_local! { static VIEWS: RefCell<Option<(gtk::Fixed, Option<webkit2gtk::WebView>, Option<webkit2gtk::WebView>)>> = const {RefCell::new(None)}; }
 // Tauri child webviews use a GtkBox by default. A GtkFixed is needed for the
 // overlaid room and desktop chrome to occupy their requested rectangles.
@@ -68,6 +68,14 @@ pub fn attach(app: &tauri::AppHandle, live: &tauri::Webview) -> tauri::Result<()
     let fullscreen = app.clone();
     live.with_webview(move |view| {
         let webview = view.inner();
+        if let Some(settings) = webview.settings() {
+            settings.set_enable_media(true);
+            settings.set_enable_webaudio(true);
+            settings.set_enable_webrtc(true);
+            settings.set_enable_media_stream(true);
+            settings.set_enable_fullscreen(true);
+            settings.set_media_playback_requires_user_gesture(false);
+        }
         webview.connect_permission_request(move |view, request| {
             use glib::translate::ToGlibPtr;
             let trusted = view

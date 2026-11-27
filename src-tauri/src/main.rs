@@ -1053,10 +1053,17 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         );
     script.push_str(include_str!("../../src/native/site-chrome.js"));
     let on_load = app.handle().clone();
-    let live = WebviewBuilder::new("live", WebviewUrl::External(initial.parse()?))
+    #[cfg(target_os = "linux")]
+    let initial_view_url = "about:blank";
+    #[cfg(windows)]
+    let initial_view_url = initial.as_str();
+    let live = WebviewBuilder::new("live", WebviewUrl::External(initial_view_url.parse()?))
         .data_directory(web_data)
         .initialization_script(script)
-        .on_navigation(move |url| trusted(url, &origin_check))
+        .on_navigation(move |url| {
+            trusted(url, &origin_check)
+                || (cfg!(target_os = "linux") && url.as_str() == "about:blank")
+        })
         .on_new_window(|_, _| NewWindowResponse::Deny)
         .on_page_load(move |view, payload| {
             if payload.event() == tauri::webview::PageLoadEvent::Finished {
@@ -1079,6 +1086,8 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "linux")]
     linux_platform::prepare(app.handle())?;
     attach_live_handlers(app.handle(), &live)?;
+    #[cfg(target_os = "linux")]
+    live.navigate(initial.parse()?)?;
     let handle = app.handle().clone();
     window.on_window_event(move |event| match event {
         tauri::WindowEvent::Resized(_) | tauri::WindowEvent::ScaleFactorChanged { .. } => {
