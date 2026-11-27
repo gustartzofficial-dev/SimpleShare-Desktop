@@ -1,16 +1,11 @@
-# SimpleShare Desktop v0.3.1 — Sidebar hotfix
+# SimpleShare Desktop v0.4.0 — Audio where it belongs, on more desktops
 
-- Fixed the collapsed sidebar’s New room button: it now shows only a centered plus icon in English, Português (Brasil), and Español.
-- Kept the full translated label when expanded, plus a translated tooltip and accessible button name when collapsed.
+- **Audio sources in one place.** With website 6.3.1, Audio beside Share screen opens add/change/remove source and separate mix controls. Opening the panel does not mute your stream.
+- **Extra audio without another picture.** The desktop app uses its application-only audio picker, preserving the active screen and outgoing audio track.
+- **A SimpleShare welcome.** Branded Windows setup artwork and a matching Linux AppImage installation screen.
+- **Linux x64.** AppImage and .deb packages, system desktop-portal screen selection, PulseAudio / pipewire-pulse application playback capture, favorites and compact mode.
+- **Updates that match the installation.** Windows and AppImage use signed updates; .deb installations link to package releases. Existing profile data and updater keys are retained.
 
-Install `SimpleShare_0.3.1_x64-setup.exe` over your current version. Saved names, rooms and preferences stay in AppData.
+Linux needs a working PipeWire desktop portal and the appropriate desktop backend; application audio also needs pulseaudio-utils. Per-stream monitoring depends on the audio server. Windows game-capture restrictions remain platform dependent. See README.md and VALIDATION.md.
 
-# SimpleShare Desktop v0.3.0 — Real fullscreen, camera, and your language
-
-- **Real fullscreen.** Choosing full screen on a shared screen or camera now fills the whole monitor. The desktop title bar, sidebar and window frame step aside, and Esc (or the page) restores the window exactly as it was. Switching to compact mode leaves fullscreen first.
-- **Camera sharing.** The room’s new Camera button works in the app. The camera is allowed only for the pinned SimpleShare website and only after you press the button; microphone requests are always refused. Compact mode gains a Camera toggle.
-- **English, Português (Brasil) and Español.** The desktop shell, sharing selectors, tray menu, quit dialog and update messages follow the room’s language, which is chosen automatically from Windows. Desktop preferences → Language changes the app and the room together and is saved in your profile.
-- **Parity with website 6.3.0.** The Audio switch next to Share screen, translated room interface and hardened room service come from the live website. Saved rooms stay in the desktop sidebar (★), so the website’s own saved-room list and its Windows app card are hidden inside the app. New room names default to the chosen language.
-- Your Audio-switch preference and language are kept in `profile.json` with your other site preferences.
-
-Install `SimpleShare_0.3.0_x64-setup.exe` over the existing version; saved names, rooms and preferences stay in AppData. Existing installations update automatically only from a release whose installer is signed with the original updater key (see UPDATER_SETUP.md).
+Install the Windows setup over your current version. For Linux, use the .deb package manager flow or run the AppImage with --install. Keep the source-upload and changed-files-upload folders for repository changes; they are not release binaries.

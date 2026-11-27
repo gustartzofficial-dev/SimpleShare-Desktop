@@ -1,7 +1,7 @@
 use gtk::prelude::*;
 use std::cell::RefCell;
 use tauri::Manager;
-use webkit2gtk::prelude::*;
+use webkit2gtk::{PermissionRequestExt, UserMediaPermissionRequestExt, WebViewExt};
 thread_local! { static VIEWS: RefCell<Option<(gtk::Fixed, Option<webkit2gtk::WebView>, Option<webkit2gtk::WebView>)>> = const {RefCell::new(None)}; }
 // Tauri child webviews use a GtkBox by default. A GtkFixed is needed for the
 // overlaid room and desktop chrome to occupy their requested rectangles.

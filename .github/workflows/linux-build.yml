@@ -34,6 +34,15 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o "$RUNNER_TEMP/rustup-init.sh"
           sh "$RUNNER_TEMP/rustup-init.sh" -y --profile minimal --default-toolchain stable
           echo "$CARGO_HOME/bin" >> "$GITHUB_PATH"
+      - uses: actions/cache/restore@v4
+        id: rust-cache
+        with:
+          path: |
+            .local/cargo/registry
+            .local/cargo/git
+            .local/target
+          key: linux-x64-${{ hashFiles('src-tauri/Cargo.lock') }}-${{ github.sha }}
+          restore-keys: linux-x64-${{ hashFiles('src-tauri/Cargo.lock') }}-
       - name: Build frontend and test Linux Rust code
         run: |
           npm ci
@@ -57,3 +66,11 @@ jobs:
           path: .local/linux-release/*
           retention-days: 14
           if-no-files-found: error
+      - uses: actions/cache/save@v4
+        if: always() && steps.rust-cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            .local/cargo/registry
+            .local/cargo/git
+            .local/target
+          key: linux-x64-${{ hashFiles('src-tauri/Cargo.lock') }}-${{ github.sha }}
