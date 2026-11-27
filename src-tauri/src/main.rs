@@ -1156,6 +1156,8 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         })
         .build(app)?;
     layout(app.handle());
+    #[cfg(target_os = "linux")]
+    linux_platform::smoke_probe(app.handle());
     load_watchdog(app.handle());
     let update_app = app.handle().clone();
     if !qa {

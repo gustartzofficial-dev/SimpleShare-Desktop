@@ -2,9 +2,9 @@ use gtk::prelude::*;
 use std::cell::RefCell;
 use tauri::Manager;
 use webkit2gtk::{PermissionRequestExt, SettingsExt, UserMediaPermissionRequestExt, WebViewExt};
-thread_local! { static VIEWS: RefCell<Option<(gtk::Fixed, Option<webkit2gtk::WebView>, Option<webkit2gtk::WebView>)>> = const {RefCell::new(None)}; }
-// Tauri child webviews use a GtkBox by default. A GtkFixed is needed for the
-// overlaid room and desktop chrome to occupy their requested rectangles.
+thread_local! { static VIEWS: RefCell<Option<(gtk::Layout, Option<webkit2gtk::WebView>, Option<webkit2gtk::WebView>)>> = const {RefCell::new(None)}; }
+// Use a positioned viewport without child-driven minimum dimensions. A plain
+// GtkFixed would keep the old window size as its minimum and prevent compact mode.
 pub fn prepare(app: &tauri::AppHandle) -> tauri::Result<()> {
     for label in ["shell", "live"] {
         let is_live = label == "live";
@@ -21,7 +21,8 @@ pub fn prepare(app: &tauri::AppHandle) -> tauri::Result<()> {
                         return;
                     };
                     if state.is_none() {
-                        let fixed = gtk::Fixed::new();
+                        let fixed =
+                            gtk::Layout::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
                         fixed.set_hexpand(true);
                         fixed.set_vexpand(true);
                         parent.remove(&widget);
@@ -68,7 +69,7 @@ pub fn attach(app: &tauri::AppHandle, live: &tauri::Webview) -> tauri::Result<()
     let fullscreen = app.clone();
     live.with_webview(move |view| {
         let webview = view.inner();
-        if let Some(settings) = webview.settings() {
+        if let Some(settings) = WebViewExt::settings(&webview) {
             settings.set_enable_media(true);
             settings.set_enable_webaudio(true);
             settings.set_enable_webrtc(true);
@@ -113,4 +114,61 @@ pub fn attach(app: &tauri::AppHandle, live: &tauri::Webview) -> tauri::Result<()
             false
         });
     })
+}
+
+/// Probe only an explicit isolated loopback QA launch, never a normal user session.
+pub fn smoke_probe(app: &tauri::AppHandle) {
+    if !std::env::args().any(|a| a == "--qa")
+        || std::env::var("SIMPLESHARE_LINUX_SMOKE").as_deref() != Ok("1")
+    {
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let result = (|| -> Result<f64, String> {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(25);
+            loop {
+                let ready = {
+                    let state = app.state::<crate::AppState>();
+                    let inner = state.inner.lock().unwrap();
+                    inner.snapshot.is_some()
+                        && inner
+                            .profile
+                            .data
+                            .site_preferences
+                            .get("simpleshare-name")
+                            .is_some_and(|v| v == "Linux native smoke")
+                };
+                if ready {
+                    break;
+                }
+                if std::time::Instant::now() > deadline {
+                    return Err("The Linux room bridge did not become ready".into());
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+            crate::compact(&app, true)?;
+            std::thread::sleep(std::time::Duration::from_millis(700));
+            let window = app.get_window("main").ok_or("Missing QA window")?;
+            let width = window.inner_size().map_err(|e| e.to_string())?.width as f64
+                / window.scale_factor().map_err(|e| e.to_string())?;
+            crate::compact(&app, false)?;
+            if width > 500.0 {
+                return Err(format!(
+                    "Linux compact mode did not shrink the window: {width}px"
+                ));
+            }
+            Ok(width)
+        })();
+        let state = app.state::<crate::AppState>();
+        let directory = state.inner.lock().unwrap().profile.directory.clone();
+        let _ = std::fs::write(
+            directory.join("desktop-smoke.json"),
+            serde_json::to_vec(&match result {
+                Ok(width) => serde_json::json!({"compactWidth":width}),
+                Err(error) => serde_json::json!({"error":error}),
+            })
+            .unwrap(),
+        );
+    });
 }
