@@ -15,10 +15,12 @@ jobs:
       CARGO_TARGET_DIR: ${{ github.workspace }}/.local/target
       npm_config_cache: ${{ github.workspace }}/.local/npm-cache
       XDG_CACHE_HOME: ${{ github.workspace }}/.local/cache
-      TMPDIR: ${{ runner.temp }}
+      TMPDIR: ${{ github.workspace }}/.local/tmp
       APPIMAGE_EXTRACT_AND_RUN: '1'
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare job storage
+        run: mkdir -p "$TMPDIR" "$XDG_CACHE_HOME"
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
