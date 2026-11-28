@@ -42,7 +42,9 @@ jobs:
             .local/cargo/git
             .local/target
           key: linux-x64-${{ hashFiles('src-tauri/Cargo.lock') }}-${{ github.sha }}
-          restore-keys: linux-x64-${{ hashFiles('src-tauri/Cargo.lock') }}-
+          restore-keys: |
+            linux-x64-${{ hashFiles('src-tauri/Cargo.lock') }}-
+            linux-x64-
       - name: Build frontend and test Linux Rust code
         run: |
           npm ci
