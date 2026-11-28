@@ -72,6 +72,7 @@ jobs:
         # Signing stays on the owner's PC. The private updater key is never uploaded.
         run: npm run tauri -- build --ci --target x86_64-unknown-linux-gnu --config src-tauri/tauri.linux.conf.json --config '{"bundle":{"createUpdaterArtifacts":false}}'
       - name: Smoke test Linux desktop and native IPC
+        timeout-minutes: 5
         run: |
           xvfb-run -a dbus-run-session -- node tests/linux-smoke.mjs
           image="$(find "$CARGO_TARGET_DIR/x86_64-unknown-linux-gnu/release/bundle/appimage" -maxdepth 1 -name '*.AppImage' -print -quit)"

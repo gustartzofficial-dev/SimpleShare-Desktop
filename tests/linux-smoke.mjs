@@ -11,6 +11,9 @@ let chromePath;for(const p of [process.env.CHROMIUM,'/usr/bin/google-chrome','/u
 assert(chromePath,'A Chromium test peer is required for Linux/browser media interop');
 const browser=await chromium.launch({executablePath:chromePath,headless:true,args:['--no-sandbox','--autoplay-policy=no-user-gesture-required']});
 const peer=await browser.newPage();let diagnostics={},requests=0,stderr='',app;
+function stopOwnedGroup(signal){if(app?.pid)try{process.kill(-app.pid,signal);}catch(error){if(error.code!=='ESRCH')throw error;}}
+process.on('exit',()=>stopOwnedGroup('SIGKILL'));
+const watchdog=setTimeout(()=>{console.error('Linux smoke watchdog expired',JSON.stringify({requests,diagnostics}),stderr);process.exit(1);},120000);watchdog.unref();
 const fixture=await readFile('tests/linux-fixture.html','utf8');
 const server=createServer(async(request,response)=>{
  try{
@@ -31,7 +34,7 @@ const server=createServer(async(request,response)=>{
 });
 await new Promise(r=>server.listen(1439,'127.0.0.1',r));await peer.goto('http://127.0.0.1:1439/browser');
 try{
- app=spawn(executable,['--qa'],{env:{...process.env,SIMPLESHARE_QA_URL:'http://127.0.0.1:1439',SIMPLESHARE_QA_PROFILE:profile,SIMPLESHARE_LINUX_SMOKE:'1',WEBKIT_DISABLE_DMABUF_RENDERER:'1'},stdio:['ignore','ignore','pipe']});app.stderr.on('data',data=>stderr=(stderr+data).slice(-16000));let failure;app.on('error',error=>failure=error);
+ app=spawn(executable,['--qa'],{env:{...process.env,SIMPLESHARE_QA_URL:'http://127.0.0.1:1439',SIMPLESHARE_QA_PROFILE:profile,SIMPLESHARE_LINUX_SMOKE:'1',WEBKIT_DISABLE_DMABUF_RENDERER:'1'},detached:true,stdio:['ignore','ignore','pipe']});app.stderr.on('data',data=>stderr=(stderr+data).slice(-16000));let failure;app.on('error',error=>failure=error);
  const deadline=Date.now()+65000;let reached=false;
  while(Date.now()<deadline){
   if(failure)throw failure;if(app.exitCode!==null)throw Error(`Linux app exited ${app.exitCode}: ${stderr}`);if(diagnostics.error)throw Error(diagnostics.error+'\n'+(diagnostics.stack||''));
@@ -44,6 +47,7 @@ try{
  let frames=0;const mediaDeadline=Date.now()+25000;while(!frames&&Date.now()<mediaDeadline){frames=await peer.evaluate(async()=>[...(await receiver.getStats()).values()].find(s=>s.type==='inbound-rtp'&&s.kind==='video')?.framesDecoded||0);await new Promise(r=>setTimeout(r,100));}assert(frames>0,'Browser must decode video from the Linux Rust transport: '+JSON.stringify(diagnostics)+' '+JSON.stringify(await peer.evaluate(async()=>[...(await receiver.getStats()).values()])));
  console.log('PASS: Linux/browser bidirectional video, data channel, native IPC, persistent profile and compact window.',JSON.stringify({browserFrames:frames,...diagnostics}));
 }finally{
- if(app){app.kill('SIGTERM');await Promise.race([new Promise(r=>app.once('exit',r)),new Promise(r=>setTimeout(r,3000))]);if(app.exitCode===null)app.kill('SIGKILL');}
- await browser.close();server.close();
+ if(app){stopOwnedGroup('SIGTERM');await Promise.race([new Promise(r=>app.once('exit',r)),new Promise(r=>setTimeout(r,3000))]);stopOwnedGroup('SIGKILL');}
+ server.closeAllConnections();server.close();
+ await Promise.race([browser.close(),new Promise((_,reject)=>setTimeout(()=>reject(Error('Browser peer cleanup timed out')),10000).unref())]);clearTimeout(watchdog);
 }
