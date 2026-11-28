@@ -12,6 +12,7 @@ import {completeLocalDescription} from "/ice.js";
   await report({...capabilities,step:'answer'});const response=await fetch('/offer',{method:'POST',body:JSON.stringify(prepared)});const answer=await response.json();if(!response.ok)throw Error(JSON.stringify(answer));await a.setRemoteDescription(answer);await report({...capabilities,step:'media'});
   const deadline=Date.now()+25000;let decoded=0;while(Date.now()<deadline&&(!received||!decoded)){decoded=[...(await a.getStats()).values()].find(s=>s.type==='inbound-rtp'&&s.kind==='video')?.framesDecoded||0;await new Promise(r=>setTimeout(r,100));}
   if(!received||!decoded)throw Error('Linux/browser media interop failed: '+JSON.stringify({received,decoded,state:a.connectionState}));
+  history.replaceState(null,'','?room=abcdef1234567890abcdef12');document.body.dataset.room='connected';window.__simpleShareNative.savePreference('simpleshare-name','Linux native smoke');
   if(__SS_LIVE_SFU__){
     const response=await fetch('/sfu-offer');const session=await response.json();if(!response.ok)throw Error(JSON.stringify(session));
     const receiver=new RTCPeerConnection({iceServers:session.iceServers,bundlePolicy:'max-bundle'}),picture=document.createElement('video');picture.autoplay=true;picture.muted=true;document.body.append(picture);

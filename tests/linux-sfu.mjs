@@ -31,7 +31,8 @@ export function liveSfuBridge(browser) {
     publisher=(await call('/partytracks/sessions/new',{})).sessionId;
     const publication=await call(`/partytracks/sessions/${publisher}/tracks/new`,{sessionDescription:local.description,tracks:[{location:'local',mid:local.mid,trackName:'linux-validation'}]});
     await page.evaluate(description=>sfuPublisher.setRemoteDescription(description),publication.sessionDescription);
-    await call(`/api/rooms/${room}/stream/upsert`,{...auth,stream:{id:'validation-'+randomBytes(8).toString('hex'),kind:'screen',sessionId:publisher,videoTrackName:'linux-validation',audioTrackName:null,profile:'720p60',audio:false}});
+    await page.evaluate(async()=>{const end=Date.now()+20000;while(Date.now()<end){const stats=await sfuPublisher.getStats();if(sfuPublisher.connectionState==='connected'&&[...stats.values()].some(s=>s.type==='outbound-rtp'&&s.bytesSent>0))return;await new Promise(r=>setTimeout(r,100));}throw Error('Synthetic browser publisher could not connect to the live SFU: '+sfuPublisher.connectionState);});
+    await call(`/api/rooms/${room}/stream/upsert`,{...auth,stream:{id:auth.participantId+'-share',kind:'screen',sessionId:publisher,videoTrackName:'linux-validation',audioTrackName:null,profile:'720p60',audio:false}});
     subscriber=(await call('/partytracks/sessions/new',{})).sessionId;
     const subscription=await call(`/partytracks/sessions/${subscriber}/tracks/new`,{tracks:[{location:'remote',sessionId:publisher,trackName:'linux-validation'}]});
     return {iceServers:ice.iceServers,description:subscription.sessionDescription};

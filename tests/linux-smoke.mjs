@@ -40,12 +40,12 @@ const server=createServer(async(request,response)=>{
 await new Promise(r=>server.listen(1439,'127.0.0.1',r));await peer.goto('http://127.0.0.1:1439/browser');
 try{
  app=spawn(executable,['--qa'],{env:{...process.env,SIMPLESHARE_QA_URL:'http://127.0.0.1:1439',SIMPLESHARE_QA_PROFILE:profile,SIMPLESHARE_LINUX_SMOKE:'1',WEBKIT_DISABLE_DMABUF_RENDERER:'1'},detached:true,stdio:['ignore','ignore','pipe']});app.stderr.on('data',data=>stderr=(stderr+data).slice(-16000));let failure;app.on('error',error=>failure=error);
- const deadline=Date.now()+65000;let reached=false;
+ const deadline=Date.now()+110000;let reached=false;
  while(Date.now()<deadline){
   if(failure)throw failure;if(app.exitCode!==null)throw Error(`Linux app exited ${app.exitCode}: ${stderr}`);if(diagnostics.error)throw Error(diagnostics.error+'\n'+(diagnostics.stack||''));
   let data,probe;try{data=JSON.parse(await readFile(path.join(profile,'profile.json'),'utf8'));probe=JSON.parse(await readFile(path.join(profile,'desktop-smoke.json'),'utf8'));}catch{}
   if(probe?.error)throw Error(probe.error+" "+JSON.stringify({requests,diagnostics})+"\n"+stderr);
-  if(data?.sitePreferences?.['simpleshare-name']==='Linux native smoke'&&data.lastRoom?.includes('abcdef1234567890abcdef12')&&probe?.compactWidth<=500){reached=true;break;}
+  if(data?.sitePreferences?.['simpleshare-name']==='Linux native smoke'&&data.lastRoom?.includes('abcdef1234567890abcdef12')&&probe?.compactWidth<=500&&(!useSfu||(diagnostics.sfu&&diagnostics.visibleVideo))){reached=true;break;}
   await new Promise(r=>setTimeout(r,250));
  }
  assert(reached,'Linux bridge/profile/compact check failed: '+JSON.stringify({requests,diagnostics})+'\n'+stderr);
