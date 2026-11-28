@@ -1204,7 +1204,7 @@ fn main() {
         // Querying media playback first initializes its registry before the RTC
         // adapter probes codecs. This script must precede the adapter's script.
         .plugin(tauri::plugin::Builder::<tauri::Wry, ()>::new("linux-media-init")
-            .js_init_script_on_all_frames("document.createElement('video').canPlayType('video/webm');")
+            .js_init_script_on_all_frames(include_str!("../../src/native/linux-media.js"))
             .build())
         .plugin(tauri_plugin_webrtc::init());
     builder

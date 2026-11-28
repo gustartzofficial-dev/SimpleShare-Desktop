@@ -1,6 +1,6 @@
 <!doctype html><html><body><input id="myName"><div id="people"></div><button id="shareBtn">Share</button><button id="stopBtn" hidden>Stop</button><canvas id="picture" width="320" height="180"></canvas><script>
 (async()=>{
- const report=value=>fetch('/probe',{method:'POST',body:JSON.stringify(value)});
+ const report=value=>fetch('/probe',{method:'POST',body:JSON.stringify(value)});let warnings=[];const warn=console.warn;console.warn=(...args)=>{warnings.push(args.map(String).join(' '));warnings=warnings.slice(-6);warn(...args);};
  try{
   const capabilities={rtc:typeof RTCPeerConnection,audio:typeof AudioContext,encoder:typeof VideoEncoder,display:typeof navigator.mediaDevices?.getDisplayMedia,native:typeof window.__simpleShareNative};await report(capabilities);
   if(capabilities.rtc!=='function'||capabilities.audio!=='function'||capabilities.encoder!=='function')throw Error('Required Linux media APIs are unavailable: '+JSON.stringify(capabilities));
@@ -12,7 +12,7 @@
   const deadline=Date.now()+25000;let decoded=0;while(Date.now()<deadline&&(!received||!decoded)){decoded=[...(await a.getStats()).values()].find(s=>s.type==='inbound-rtp'&&s.kind==='video')?.framesDecoded||0;await new Promise(r=>setTimeout(r,100));}
   if(!received||!decoded)throw Error('Linux/browser media interop failed: '+JSON.stringify({received,decoded,state:a.connectionState}));
   await report({...capabilities,dataChannel:true,videoFrames:decoded});history.replaceState(null,'','?room=abcdef1234567890abcdef12');document.body.dataset.room='connected';window.__simpleShareNative.savePreference('simpleshare-name','Linux native smoke');
-  window.qaConnection=a;window.qaStream=stream;window.qaTimer=timer; // Keep both directions alive until the host verifies browser decoding.
+  setInterval(async()=>report({...capabilities,dataChannel:received,stats:[...(await a.getStats()).values()].filter(s=>s.type==='outbound-rtp'||s.type==='inbound-rtp'),warnings,videos:[...document.querySelectorAll('#__tauri_webrtc_media video')].map(v=>({width:v.videoWidth,height:v.videoHeight,time:v.currentTime,paused:v.paused,ready:v.readyState}))}),2000);window.qaConnection=a;window.qaStream=stream;window.qaTimer=timer; // Keep both directions alive until the host verifies browser decoding.
  }catch(error){await report({error:String(error),stack:error.stack});}
 })();
 </script></body></html>
