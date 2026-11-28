@@ -24,7 +24,7 @@ export function includeIceCandidates(description, candidates, complete = false) 
   };
 }
 
-export async function completeLocalDescription(pc, description, timeout = 25000) {
+export async function completeLocalDescription(pc, description, timeout = 20000) {
   const candidates = [];
   let timer;
   let finish;

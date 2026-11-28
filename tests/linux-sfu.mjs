@@ -17,7 +17,7 @@ export function liveSfuBridge(browser) {
     socket=new WebSocket(base.replace('https:','wss:')+`/api/rooms/${room}/socket?id=${encodeURIComponent(auth.participantId)}&token=${encodeURIComponent(auth.token)}`);
     socket.addEventListener('error',()=>{});
     const ice=await call('/partytracks/generate-ice-servers');
-    publisher=(await call('/partytracks/sessions/new',{})).sessionId;
+    
     page=await browser.newPage();await page.goto('http://127.0.0.1:1439/browser');
     const local=await page.evaluate(async iceServers=>{
       const pc=window.sfuPublisher=new RTCPeerConnection({iceServers,bundlePolicy:'max-bundle'});
@@ -28,6 +28,7 @@ export function liveSfuBridge(browser) {
       const end=Date.now()+25000;while(pc.iceGatheringState!=='complete'&&Date.now()<end)await new Promise(r=>setTimeout(r,50));
       return {description:pc.localDescription.toJSON(),mid:pc.getTransceivers()[0].mid};
     },ice.iceServers);
+    publisher=(await call('/partytracks/sessions/new',{})).sessionId;
     const publication=await call(`/partytracks/sessions/${publisher}/tracks/new`,{sessionDescription:local.description,tracks:[{location:'local',mid:local.mid,trackName:'linux-validation'}]});
     await page.evaluate(description=>sfuPublisher.setRemoteDescription(description),publication.sessionDescription);
     await call(`/api/rooms/${room}/stream/upsert`,{...auth,stream:{id:'validation-'+randomBytes(8).toString('hex'),kind:'screen',sessionId:publisher,videoTrackName:'linux-validation',audioTrackName:null,profile:'720p60',audio:false}});
