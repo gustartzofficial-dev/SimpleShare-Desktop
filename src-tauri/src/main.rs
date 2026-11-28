@@ -1,12 +1,25 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod capture_picker;
+#[cfg(windows)]
 mod gpu_scale;
 mod i18n;
+mod installer;
+#[cfg(target_os = "linux")]
+mod linux_platform;
 mod profile;
+#[cfg(windows)]
 mod qa_fixture;
 #[cfg(test)]
 mod update_tests;
+#[cfg(windows)]
 mod windows_audio;
+#[cfg(target_os = "linux")]
+#[path = "linux_audio.rs"]
+mod windows_audio;
+#[cfg(windows)]
+mod windows_video;
+#[cfg(target_os = "linux")]
+#[path = "linux_video.rs"]
 mod windows_video;
 use i18n::{tr, tr_with};
 use profile::{label, room_url, trusted, Profile, SITE};
@@ -72,11 +85,31 @@ fn local_auth(view: &Webview, label: &str) -> Result<(), String> {
     Ok(())
 }
 fn local_page(u: &url::Url) -> bool {
-    (matches!(u.scheme(), "tauri" | "http" | "https") && u.host_str() == Some("tauri.localhost"))
+    (u.scheme() == "tauri" && u.host_str() == Some("localhost"))
+        || (matches!(u.scheme(), "http" | "https") && u.host_str() == Some("tauri.localhost"))
         || (cfg!(debug_assertions)
             && u.scheme() == "http"
             && u.host_str() == Some("127.0.0.1")
             && u.port() == Some(1420))
+}
+#[cfg(test)]
+mod local_origin_tests {
+    #[test]
+    fn windows_and_linux_assets_are_local_but_similar_remote_hosts_are_not() {
+        for url in [
+            "tauri://localhost/installer.html",
+            "http://tauri.localhost/index.html",
+        ] {
+            assert!(super::local_page(&url.parse().unwrap()));
+        }
+        for url in [
+            "https://localhost/installer.html",
+            "tauri://evil.example/",
+            "https://tauri.localhost.evil.example/",
+        ] {
+            assert!(!super::local_page(&url.parse().unwrap()));
+        }
+    }
 }
 fn language_of(s: &Inner) -> &'static str {
     i18n::resolve(
@@ -113,7 +146,7 @@ fn state_value(app: &tauri::AppHandle) -> Value {
         .is_some_and(|w| w.is_maximized().unwrap_or(false));
     let state = app.state::<AppState>();
     let s = state.inner.lock().unwrap();
-    json!({"version":app.package_info().version.to_string(),"language":language_of(&s),"languagePreference":s.profile.data.site_preferences.get("simpleshare-lang").cloned().unwrap_or_else(||"auto".into()),"fullscreen":s.fullscreen,"compact":s.compact,"overlay":s.overlay,"loading":s.loading,"loadError":s.error,"notice":s.notice,"snapshot":s.snapshot,"data":s.profile.data,"nativeAudioSupported":true,"profilePath":s.profile.directory.display().to_string(),"updateStatus":s.update_status,"updateAvailable":s.update.as_ref().map(|u|u.version.clone()),"maximized":maximized})
+    json!({"version":app.package_info().version.to_string(),"language":language_of(&s),"languagePreference":s.profile.data.site_preferences.get("simpleshare-lang").cloned().unwrap_or_else(||"auto".into()),"fullscreen":s.fullscreen,"compact":s.compact,"overlay":s.overlay,"loading":s.loading,"loadError":s.error,"notice":s.notice,"snapshot":s.snapshot,"data":s.profile.data,"platform":std::env::consts::OS,"selfUpdateSupported":!cfg!(target_os="linux")||std::env::var_os("APPIMAGE").is_some(),"nativeAudioSupported":true,"profilePath":s.profile.directory.display().to_string(),"updateStatus":s.update_status,"updateAvailable":s.update.as_ref().map(|u|u.version.clone()),"maximized":maximized})
 }
 fn send_state(app: &tauri::AppHandle) {
     let _ = app.emit_to("shell", "shell-state", state_value(app));
@@ -138,15 +171,27 @@ fn layout(app: &tauri::AppHandle) {
         216.0
     };
     let fullscreen = s.fullscreen && !compact;
-    let hidden = !fullscreen
-        && (compact || !s.overlay.is_empty() || s.loading || !s.error.is_empty());
+    let hidden =
+        !fullscreen && (compact || !s.overlay.is_empty() || s.loading || !s.error.is_empty());
     drop(s);
+    #[cfg(target_os = "linux")]
+    linux_platform::layout(
+        app,
+        width,
+        height,
+        if fullscreen { 0.0 } else { sidebar },
+        if fullscreen { 0.0 } else { 52.0 },
+    );
     if let Some(shell) = app.get_webview("shell") {
         let _ = shell.set_size(LogicalSize::new(width, height));
     }
     if let Some(live) = app.get_webview("live") {
         // In fullscreen the room covers the whole window, hiding the title bar and sidebar.
-        let (left, top) = if fullscreen { (0.0, 0.0) } else { (sidebar, 52.0) };
+        let (left, top) = if fullscreen {
+            (0.0, 0.0)
+        } else {
+            (sidebar, 52.0)
+        };
         let _ = live.set_position(LogicalPosition::new(left, top));
         let _ = live.set_size(LogicalSize::new(
             (width - left).max(1.0),
@@ -245,9 +290,9 @@ fn attach_live_handlers(app: &tauri::AppHandle, live: &Webview) -> tauri::Result
         );
     })
 }
-#[cfg(not(windows))]
-fn attach_live_handlers(_: &tauri::AppHandle, _: &Webview) -> tauri::Result<()> {
-    Ok(())
+#[cfg(target_os = "linux")]
+fn attach_live_handlers(app: &tauri::AppHandle, view: &Webview) -> tauri::Result<()> {
+    linux_platform::attach(app, view)
 }
 fn notice(app: &tauri::AppHandle, message: impl Into<String>) {
     app.state::<AppState>().inner.lock().unwrap().notice = message.into();
@@ -402,8 +447,10 @@ fn flush_and_quit(app: &tauri::AppHandle) {
             let app = app.clone();
             std::thread::spawn(move || {
                 std::thread::sleep(Duration::from_secs(3));
-                app.state::<AppState>().audio.stop_all();
-                app.state::<AppState>().video.stop_all(&app);
+                if let Some(state) = app.try_state::<AppState>() {
+                    state.audio.stop_all();
+                    state.video.stop_all(&app);
+                }
                 app.exit(0);
             });
             return;
@@ -702,6 +749,7 @@ async fn audio_choose(app: tauri::AppHandle, webview: Webview) -> Result<String,
     .inner_size(620.0, 530.0)
     .min_inner_size(500.0, 420.0)
     .resizable(true);
+    #[cfg(windows)]
     if let Some(parent) = app.get_window("main") {
         window = window.owner_raw(parent.hwnd().map_err(|e| e.to_string())?);
     }
@@ -824,6 +872,16 @@ fn audio_ack(
     Ok(())
 }
 async fn check_update(app: tauri::AppHandle, automatic: bool) {
+    #[cfg(target_os = "linux")]
+    if std::env::var_os("APPIMAGE").is_none() {
+        if !automatic {
+            let _ = app.opener().open_url(
+                "https://github.com/gustartzofficial-dev/SimpleShare-Desktop/releases/latest",
+                None::<&str>,
+            );
+        }
+        return;
+    }
     {
         let state = app.state::<AppState>();
         let mut s = state.inner.lock().unwrap();
@@ -914,6 +972,9 @@ async fn install_update(app: tauri::AppHandle) -> Result<(), String> {
     app.restart();
 }
 fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    if std::env::args().any(|a| a == "--install") {
+        return installer::setup(app);
+    }
     let qa = std::env::args().any(|a| a == "--qa");
     let origin = if qa {
         let value = std::env::var("SIMPLESHARE_QA_URL")?;
@@ -985,13 +1046,24 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let origin_check = origin.clone();
     let mut script = include_str!("../gen/live.js")
         .replace("__SS_ORIGIN_JSON__", &json!(origin).to_string())
-        .replace("__SS_PREFS_JSON__", &json!(startup).to_string());
+        .replace("__SS_PREFS_JSON__", &json!(startup).to_string())
+        .replace(
+            "__SS_PLATFORM_JSON__",
+            &json!(std::env::consts::OS).to_string(),
+        );
     script.push_str(include_str!("../../src/native/site-chrome.js"));
     let on_load = app.handle().clone();
-    let live = WebviewBuilder::new("live", WebviewUrl::External(initial.parse()?))
+    #[cfg(target_os = "linux")]
+    let initial_view_url = "about:blank";
+    #[cfg(windows)]
+    let initial_view_url = initial.as_str();
+    let live = WebviewBuilder::new("live", WebviewUrl::External(initial_view_url.parse()?))
         .data_directory(web_data)
         .initialization_script(script)
-        .on_navigation(move |url| trusted(url, &origin_check))
+        .on_navigation(move |url| {
+            trusted(url, &origin_check)
+                || (cfg!(target_os = "linux") && url.as_str() == "about:blank")
+        })
         .on_new_window(|_, _| NewWindowResponse::Deny)
         .on_page_load(move |view, payload| {
             if payload.event() == tauri::webview::PageLoadEvent::Finished {
@@ -1011,7 +1083,11 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         LogicalPosition::new(216.0, 52.0),
         LogicalSize::new(1104.0, 798.0),
     )?;
+    #[cfg(target_os = "linux")]
+    linux_platform::prepare(app.handle())?;
     attach_live_handlers(app.handle(), &live)?;
+    #[cfg(target_os = "linux")]
+    live.navigate(initial.parse()?)?;
     let handle = app.handle().clone();
     window.on_window_event(move |event| match event {
         tauri::WindowEvent::Resized(_) | tauri::WindowEvent::ScaleFactorChanged { .. } => {
@@ -1080,6 +1156,8 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         })
         .build(app)?;
     layout(app.handle());
+    #[cfg(target_os = "linux")]
+    linux_platform::smoke_probe(app.handle());
     load_watchdog(app.handle());
     let update_app = app.handle().clone();
     if !qa {
@@ -1095,12 +1173,14 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 }
 fn main() {
     let args: Vec<_> = std::env::args().collect();
+    #[cfg(windows)]
     if args.get(1).is_some_and(|s| s == "--native-fixture") {
         if qa_fixture::run().is_err() {
             std::process::exit(1);
         }
         return;
     }
+    #[cfg(windows)]
     if args.get(1).is_some_and(|s| s == "--audio-worker") {
         let result = args
             .get(2)
@@ -1117,7 +1197,10 @@ fn main() {
     if args.iter().any(|arg| arg == "--qa") {
         context.config_mut().identifier.push_str(".qa");
     }
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(target_os = "linux")]
+    let builder = builder.plugin(tauri_plugin_webrtc::init());
+    builder
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Some(w) = app.get_window("main") {
                 let _ = w.show();
@@ -1128,6 +1211,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![
+            installer::installer_command,
             shell_command,
             site_preferences,
             site_state,
@@ -1151,8 +1235,10 @@ fn main() {
         .expect("Could not start SimpleShare")
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
-                app.state::<AppState>().audio.stop_all();
-                app.state::<AppState>().video.stop_all(app);
+                if let Some(state) = app.try_state::<AppState>() {
+                    state.audio.stop_all();
+                    state.video.stop_all(app);
+                }
             }
         });
 }

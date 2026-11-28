@@ -74,6 +74,14 @@ try{
   const rms=()=>live.evaluate(async()=>{const ctx=new AudioContext(),source=ctx.createMediaStreamSource(capture),analyser=ctx.createAnalyser();source.connect(analyser);await ctx.resume();await new Promise(r=>setTimeout(r,1200));const data=new Float32Array(analyser.fftSize);analyser.getFloatTimeDomainData(data);const rms=Math.sqrt(data.reduce((sum,n)=>sum+n*n,0)/data.length);await ctx.close();return rms;});
   result.audioRms=await rms();assert(result.audioRms>.001,'Native application audio should contain the fixture tone');
   console.log('Native video and audio are live');
+  await live.evaluate(()=>{window.extraError=null;window.__simpleShareCapture.getExtraAudio().then(stream=>window.extraAudioCapture=stream).catch(error=>window.extraError=String(error));});
+  let audioPicker;for(let i=0;i<100;i++){audioPicker=browser.contexts().flatMap(c=>c.pages()).find(p=>p.url().includes('audio.html'));if(audioPicker)break;await delay(100);}assert(audioPicker,'Extra audio must use the application-only picker');
+  assert(!browser.contexts().flatMap(c=>c.pages()).some(p=>p.url().includes('capture.html')),'Extra audio must not open a screen picker');
+  await audioPicker.locator('.audio-option').filter({hasText:'SimpleShare Native Capture Fixture'}).first().click();await audioPicker.locator('#audioConfirm').click();
+  await live.waitForFunction(()=>window.extraAudioCapture||window.extraError);assert.equal(await live.evaluate(()=>window.extraError),null);
+  assert.equal(await live.evaluate(()=>extraAudioCapture.getVideoTracks().length),0);assert.equal(await live.evaluate(()=>extraAudioCapture.getAudioTracks()[0].readyState),'live');
+  await live.evaluate(()=>extraAudioCapture.getTracks().forEach(t=>t.stop()));assert.equal(await live.evaluate(()=>capture.getVideoTracks()[0].readyState),'live');assert.equal(await live.evaluate(()=>capture.getAudioTracks()[0].readyState),'live');result.extraAudioWithoutVideo=true;
+
   await live.evaluate(async()=>{
    const a=window.qaSender=new RTCPeerConnection(),b=window.qaReceiver=new RTCPeerConnection();window.qaRemote=new MediaStream();
    b.ontrack=e=>qaRemote.addTrack(e.track);a.onicecandidate=e=>e.candidate&&b.addIceCandidate(e.candidate).catch(()=>{});b.onicecandidate=e=>e.candidate&&a.addIceCandidate(e.candidate).catch(()=>{});

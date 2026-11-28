@@ -61,6 +61,8 @@ const en = {
   'prefs.cameraHelp':
     'Use the Camera button in a room to share your webcam as its own picture. SimpleShare never turns on a microphone.',
   'prefs.version': 'SimpleShare Desktop {version} · Live website, native companion.',
+  'prefs.debUpdates': 'Download Debian update ↗',
+  'prefs.debUpdateHelp': 'Debian installations update through your package manager. Download the latest .deb from Releases.',
   'prefs.updates': 'Application updates',
   'prefs.autoUpdate': 'Automatic updates',
   'prefs.autoUpdateHelp':
@@ -71,6 +73,7 @@ const en = {
   'prefs.import': 'Import old profile',
   'prefs.openData': 'Open saved-data folder',
   'prefs.quit': 'Quit desktop app',
+  'prefs.audioLinux': 'Application audio uses PulseAudio or pipewire-pulse. Play sound in an app before selecting it. Install pulseaudio-utils if no apps appear.',
   'prefs.audioSupported': 'Native process audio is available on this Windows device.',
   'prefs.audioUnsupported':
     'This device supports video capture. Scoped application audio requires Windows x64, build 20348 or newer.',
@@ -189,6 +192,8 @@ const ptBR = {
   'prefs.cameraHelp':
     'Use o botão Câmera em uma sala para compartilhar sua webcam como uma imagem separada. O SimpleShare nunca liga um microfone.',
   'prefs.version': 'SimpleShare para computador {version} · Site ao vivo, companhia nativa.',
+  'prefs.debUpdates': 'Baixar atualização Debian ↗',
+  'prefs.debUpdateHelp': 'Instalações Debian são atualizadas pelo gerenciador de pacotes. Baixe o .deb mais recente em Releases.',
   'prefs.updates': 'Atualizações do app',
   'prefs.autoUpdate': 'Atualizações automáticas',
   'prefs.autoUpdateHelp':
@@ -199,6 +204,7 @@ const ptBR = {
   'prefs.import': 'Importar perfil antigo',
   'prefs.openData': 'Abrir pasta de dados',
   'prefs.quit': 'Sair do app',
+  'prefs.audioLinux': 'O áudio de aplicativos usa PulseAudio ou pipewire-pulse. Reproduza som antes de selecionar o app. Instale pulseaudio-utils se a lista estiver vazia.',
   'prefs.audioSupported': 'O áudio nativo por processo está disponível neste Windows.',
   'prefs.audioUnsupported':
     'Este dispositivo captura vídeo. O áudio por aplicativo exige Windows x64, build 20348 ou mais recente.',
@@ -317,6 +323,8 @@ const es = {
   'prefs.cameraHelp':
     'Usa el botón Cámara en una sala para compartir tu webcam como una imagen aparte. SimpleShare nunca enciende un micrófono.',
   'prefs.version': 'SimpleShare para escritorio {version} · Sitio en vivo, compañía nativa.',
+  'prefs.debUpdates': 'Descargar actualización Debian ↗',
+  'prefs.debUpdateHelp': 'Las instalaciones Debian se actualizan con el gestor de paquetes. Descarga el último .deb desde Releases.',
   'prefs.updates': 'Actualizaciones de la app',
   'prefs.autoUpdate': 'Actualizaciones automáticas',
   'prefs.autoUpdateHelp':
@@ -327,6 +335,7 @@ const es = {
   'prefs.import': 'Importar perfil anterior',
   'prefs.openData': 'Abrir carpeta de datos',
   'prefs.quit': 'Salir de la app',
+  'prefs.audioLinux': 'El audio de aplicaciones usa PulseAudio o pipewire-pulse. Reproduce sonido antes de elegir la app. Instala pulseaudio-utils si la lista está vacía.',
   'prefs.audioSupported': 'El audio nativo por proceso está disponible en este Windows.',
   'prefs.audioUnsupported':
     'Este dispositivo captura video. El audio por aplicación requiere Windows x64, compilación 20348 o posterior.',

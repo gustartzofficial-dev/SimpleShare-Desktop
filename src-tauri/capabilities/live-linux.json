@@ -1,0 +1,19 @@
+{
+  "identifier": "live-linux-rtc",
+  "description": "Rust WebRTC transport only for the pinned Linux room",
+  "platforms": [
+    "linux"
+  ],
+  "webviews": [
+    "live"
+  ],
+  "remote": {
+    "urls": [
+      "https://simple-share-hazel.vercel.app/*",
+      "http://127.0.0.1:*/*"
+    ]
+  },
+  "permissions": [
+    "webrtc:default"
+  ]
+}

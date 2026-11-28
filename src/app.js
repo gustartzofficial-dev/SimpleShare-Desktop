@@ -112,7 +112,9 @@ function render(value) {
   $('sidebarToggle').title=t(state.data.prefs.sidebarCollapsed?'sidebar.expand':'sidebar.collapse');
   $('sidebarToggle').hidden=state.compact;
   $('profilePath').textContent=state.profilePath;
-  $('updateStatus').textContent=state.updateStatus;
+  $('updateStatus').textContent=state.selfUpdateSupported===false?t('prefs.debUpdateHelp'):state.updateStatus;
+  $('autoUpdate').disabled=state.selfUpdateSupported===false;
+  $('checkUpdate').textContent=t(state.selfUpdateSupported===false?'prefs.debUpdates':'prefs.checkUpdate');
   $('installUpdate').hidden=!state.updateAvailable;
   $('autoUpdate').checked=state.data.prefs.autoUpdate;
   document.body.classList.toggle('compact', state.compact);
@@ -182,7 +184,7 @@ function render(value) {
   $('qualityProfile').value = state.data.prefs.profile;
   for (const key of ['alwaysOnTop', 'closeToTray', 'reopenLastRoom'])
     $(key).checked = state.data.prefs[key];
-  $('audioSupport').textContent = t(state.nativeAudioSupported ? 'prefs.audioSupported' : 'prefs.audioUnsupported');
+  $('audioSupport').textContent = t(state.platform==='linux' ? 'prefs.audioLinux' : state.nativeAudioSupported ? 'prefs.audioSupported' : 'prefs.audioUnsupported');
   $('versionLine').textContent = t('prefs.version', { version: state.version });
   if (state.notice) feedback(state.notice);
   else if(previousNotice) feedback('');

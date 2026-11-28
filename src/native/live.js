@@ -1,6 +1,6 @@
 import {invoke,Channel} from '@tauri-apps/api/core';
 (()=>{
- const ORIGIN=__SS_ORIGIN_JSON__,saved=__SS_PREFS_JSON__;
+ const ORIGIN=__SS_ORIGIN_JSON__,saved=__SS_PREFS_JSON__,platform=__SS_PLATFORM_JSON__;
  if(window.top!==window.self||location.origin!==ORIGIN||location.pathname!=='/')return;
  const keys=['simpleshare-name','simpleshare-theme','simpleshare-muted','simpleshare-volume','simpleshare-sfx','simpleshare-primary-mix','simpleshare-extra-mix','simpleshare-share-audio','simpleshare-lang'];
  const pending=new Set();
@@ -23,13 +23,13 @@ import {invoke,Channel} from '@tauri-apps/api/core';
  window.__ssAudioChoice=(id,grant)=>{if(choices.has(id)){choices.get(id)(grant);choices.delete(id);}else earlyChoices.set(id,grant);};
  async function chooseAudio(){const id=await invoke('audio_choose');if(earlyChoices.has(id)){const value=earlyChoices.get(id);earlyChoices.delete(id);return value;}return new Promise(resolve=>choices.set(id,resolve));}
  const audioErrors=new Map();window.__ssAudioError=(id,error)=>audioErrors.get(id)?.(error);
- const scopes=new WeakMap();Object.defineProperty(window,'__simpleShareCapture',{value:Object.freeze({audioScope:stream=>scopes.get(stream)||'none'})});window.__simpleShareCaptureInstalled=true;
+ const scopes=new WeakMap();let getExtraAudio;Object.defineProperty(window,'__simpleShareCapture',{value:Object.freeze({audioScope:stream=>scopes.get(stream)||'none',getExtraAudio:()=>getExtraAudio()})});window.__simpleShareCaptureInstalled=true;
  const processor="class NativeAppAudio extends AudioWorkletProcessor {\n    constructor() { super(); this.queue = new Float32Array(48000); this.read = 0; this.write = 0; this.count = 0; this.port.onmessage = ({data}) => {\n      const bytes = new DataView(data.buffer, data.byteOffset, data.byteLength);\n      for(let i=0;i+3<bytes.byteLength;i+=4) { if(this.count >= this.queue.length - 2) { this.read=(this.read+2)%this.queue.length;this.count-=2; }\n        this.queue[this.write]=bytes.getInt16(i,true)/32768;this.write=(this.write+1)%this.queue.length;\n        this.queue[this.write]=bytes.getInt16(i+2,true)/32768;this.write=(this.write+1)%this.queue.length;this.count+=2;\n      }\n      if(this.count > 12000) { const discard=this.count-6000;this.read=(this.read+discard)%this.queue.length;this.count-=discard; }\n    }; }\n    process(inputs,outputs) { const out=outputs[0]; for(let i=0;i<out[0].length;i++) { for(let channel=0;channel<2;channel++) { out[channel][i]=this.count ? this.queue[this.read] : 0; if(this.count){this.read=(this.read+1)%this.queue.length;this.count--;} } } return true; }\n  } registerProcessor('native-app-audio',NativeAppAudio);";
  const captureChoices=new Map(),earlyCaptures=new Map(),sharedBuffers=new Map(),nativeEnds=new Map();
  window.__ssCaptureChoice=(id,value)=>{if(captureChoices.has(id)){captureChoices.get(id)(value);captureChoices.delete(id);}else earlyCaptures.set(id,value);};
  window.__ssVideoEnded=(id,message)=>nativeEnds.get(id)?.(message);
  window.__ssNativeStopAll=()=>{for(const end of [...nativeEnds.values()])end('Sharing stopped from the desktop controls.');};
- window.chrome.webview.addEventListener('sharedbufferreceived',event=>{if(event.additionalData?.type!=='simpleshare-native-video')return;const {id,slot}=event.additionalData;let buffers=sharedBuffers.get(id);if(!buffers){buffers=[];sharedBuffers.set(id,buffers);}buffers[slot]=event.getBuffer();});
+ if(platform==='windows')window.chrome.webview.addEventListener('sharedbufferreceived',event=>{if(event.additionalData?.type!=='simpleshare-native-video')return;const {id,slot}=event.additionalData;let buffers=sharedBuffers.get(id);if(!buffers){buffers=[];sharedBuffers.set(id,buffers);}buffers[slot]=event.getBuffer();});
  async function nativePicture(options){
   if(typeof MediaStreamTrackGenerator!=='function')throw Error('Update Microsoft Edge WebView2 to use native screen capture.');
   const request=await invoke('capture_choose',{audio:options?.audio!==false&&options?.audio!=null});
@@ -48,23 +48,40 @@ import {invoke,Channel} from '@tauri-apps/api/core';
   try{await invoke('video_start',{id:choice.video,width,height,fps,onFrame:channel});if(ended){await invoke('video_stop',{id:choice.video});throw Error('Native capture ended while starting.');}}catch(error){finish();throw error;}
   return {stream,audio:choice.audio};
  }
- navigator.mediaDevices.getDisplayMedia=async options=>{
-  const picture=await nativePicture(options),stream=picture.stream;
-  const video=stream.getVideoTracks()[0];let context,track,channel,id,stopped=false;
-  const lockCancel=new AbortController();let releaseLock;navigator.locks?.request('simpleshare-capture-'+video.id,{signal:lockCancel.signal},()=>video.readyState==='ended'?undefined:new Promise(resolve=>{releaseLock=resolve;})).catch(()=>{});
-  const cleanup=()=>{if(stopped)return;stopped=true;if(id){audioErrors.delete(id);invoke('audio_stop',{id}).catch(()=>{});}track?.stop();context?.close().catch(()=>{});};
-  const end=()=>{lockCancel.abort();releaseLock?.();cleanup();};const stop=video.stop.bind(video);video.stop=()=>{stop();end();};video.addEventListener('ended',end,{once:true});
-  if(options?.audio===false||options?.audio==null)return stream;
+ const portalCapture=navigator.mediaDevices.getDisplayMedia?.bind(navigator.mediaDevices);
+ async function nativeAudio(id){
+  let context,track,stopped=false;
+  const cleanup=()=>{if(stopped)return;stopped=true;audioErrors.delete(id);invoke('audio_stop',{id}).catch(()=>{});context?.close().catch(()=>{});};
   try{
-   id=picture.audio;if(!id)return stream;if(video.readyState!=='live')throw Error('The selected picture ended.');
-   context=new AudioContext({sampleRate:48000,latencyHint:'interactive'});if(context.sampleRate!==48000)throw Error('Application audio requires 48 kHz.');
+   context=new AudioContext({sampleRate:48000,latencyHint:'interactive'});
+   if(context.sampleRate!==48000)throw Error('Application audio requires 48 kHz.');
    const url=URL.createObjectURL(new Blob([processor],{type:'text/javascript'}));try{await context.audioWorklet.addModule(url);}finally{URL.revokeObjectURL(url);}
    const node=new AudioWorkletNode(context,'native-app-audio',{numberOfInputs:0,numberOfOutputs:1,outputChannelCount:[2]}),destination=context.createMediaStreamDestination();node.connect(destination);track=destination.stream.getAudioTracks()[0];
-   channel=new Channel();channel.onmessage=packet=>{if(stopped)return;const data=new Uint8Array(packet),seq=new DataView(data.buffer,data.byteOffset).getUint32(0,true);node.port.postMessage(data.subarray(4));invoke('audio_ack',{id,sequence:seq}).catch(()=>{});};
-   audioErrors.set(id,error=>{cleanup();invoke('site_notice',{message:error}).catch(()=>{});});
-   await invoke('audio_start',{id,onAudio:channel});if(stopped){await invoke('audio_stop',{id});throw Error('Capture ended while application audio was starting.');}await context.resume();stream.addTrack(track);scopes.set(stream,'application');return stream;
-  }catch(error){cleanup();invoke('site_notice',{message:'Application audio could not start: '+error+'. Your picture can continue.'}).catch(()=>{});if(video.readyState==='live')return stream;stream.getTracks().forEach(t=>t.stop());throw error;}
+   const stop=track.stop.bind(track);track.stop=()=>{stop();cleanup();};track.addEventListener('ended',cleanup,{once:true});
+   const channel=new Channel();channel.onmessage=packet=>{if(stopped)return;const data=new Uint8Array(packet),seq=new DataView(data.buffer,data.byteOffset).getUint32(0,true);node.port.postMessage(data.subarray(4));invoke('audio_ack',{id,sequence:seq}).catch(()=>{});};
+   audioErrors.set(id,error=>{track.stop();track.dispatchEvent(new Event('ended'));invoke('site_notice',{message:error}).catch(()=>{});});
+   await invoke('audio_start',{id,onAudio:channel});await context.resume();return new MediaStream([track]);
+  }catch(error){track?.stop();cleanup();throw error;}
+ }
+ getExtraAudio=async()=>{const id=await chooseAudio();if(!id)throw new DOMException('Audio selection cancelled','NotAllowedError');return nativeAudio(id);};
+ navigator.mediaDevices.getDisplayMedia=async options=>{
+  const picture=platform==='windows'?await nativePicture(options):{stream:await portalPicture(options),audio:null};
+  const stream=picture.stream,video=stream.getVideoTracks()[0];let audio;
+  const lockCancel=new AbortController();let releaseLock;navigator.locks?.request('simpleshare-capture-'+video.id,{signal:lockCancel.signal},()=>video.readyState==='ended'?undefined:new Promise(resolve=>{releaseLock=resolve;})).catch(()=>{});
+  const stop=video.stop.bind(video);const end=()=>{lockCancel.abort();releaseLock?.();audio?.getTracks().forEach(track=>track.stop());};video.stop=()=>{stop();end();};video.addEventListener('ended',end,{once:true});
+  if(options?.audio===false||options?.audio==null)return stream;
+  try{
+   const id=platform==='windows'?picture.audio:await chooseAudio();if(!id)return stream;
+   audio=await nativeAudio(id);if(video.readyState!=='live'){end();throw Error('The selected picture ended.');}
+   stream.addTrack(audio.getAudioTracks()[0]);scopes.set(stream,'application');return stream;
+  }catch(error){end();invoke('site_notice',{message:'Application audio could not start: '+error+'. Your picture can continue.'}).catch(()=>{});if(video.readyState==='live')return stream;stream.getTracks().forEach(track=>track.stop());throw error;}
  };
+ async function portalPicture(options){
+  if(!portalCapture)throw Error('This Linux WebKitGTK runtime does not support screen sharing. Install the supported runtime and desktop portal packages.');
+  const stream=await portalCapture({...options,audio:false});const video=stream.getVideoTracks()[0];if(!video){stream.getTracks().forEach(track=>track.stop());throw Error('No screen selected.');}
+  const finish=()=>{nativeEnds.delete(video.id);video.stop();video.dispatchEvent(new Event('ended'));};nativeEnds.set(video.id,finish);video.addEventListener('ended',()=>nativeEnds.delete(video.id),{once:true});
+  return stream;
+ }
  document.addEventListener('change',event=>{const id=event.target?.id;if(['myName','displayName'].includes(id))savePreference('simpleshare-name',event.target.value);else if(['languageSelect','homeLanguage'].includes(id))savePreference('simpleshare-lang',event.target.value);
   // Before sharing, the dock Audio switch is a saved preference; while sharing it is a live mute.
   else if(id==='withAudio'&&document.getElementById('stopBtn')?.classList.contains('hidden'))savePreference('simpleshare-share-audio',event.target.checked?'on':'off');},true);

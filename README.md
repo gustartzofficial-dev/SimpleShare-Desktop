@@ -1,88 +1,71 @@
 # SimpleShare Desktop
 
-Simple screen sharing, with a desktop home. **Version 0.3.1** is the Windows x64 client built with **Rust and Tauri 2**. It adds real monitor-filling fullscreen for shared screens, camera sharing, and English / Português (Brasil) / Español.
+Simple screen sharing, with a desktop home. **Version 0.4.0** adds dedicated extra application audio, branded installers, and Linux x64 packaging alongside Windows x64.
 
-The app uses the [live SimpleShare website](https://simple-share-hazel.vercel.app) for rooms and streaming connections. Its desktop shell, window/display selection, screen acquisition, application audio, profile storage, tray integration, and updater are implemented locally. No separate browser window is launched.
+The app opens the [live SimpleShare website](https://simple-share-hazel.vercel.app) inside its desktop window. Saved places, compact mode, profile storage and installation are local. There is no separate browser window.
 
-Version 0.3.1 fixes the collapsed New room button in every supported language: only the centered plus icon remains visible, with a translated tooltip and accessible name.
+## What changed
 
-## Desktop features
+- The room’s **Audio** action opens extra sources and mix controls with website 6.3.1. It no longer immediately toggles outgoing audio.
+- Extra desktop audio uses an **audio-only application picker**. Adding it does not allocate another video capture or replace the outgoing mixed track.
+- Windows setup has SimpleShare artwork, its own icon, and English / Português (Brasil) / Español installer translations.
+- Linux preview has x64 AppImage and Debian packaging. The AppImage includes a branded, per-user installation screen.
+- The collapsed sidebar still shows only its centered plus, with a translated tooltip and accessible name.
 
-- An integrated window with a collapsible **Your places** sidebar, named favorite rooms, and recent rooms.
-- A small app-owned sharing selector with native window/display thumbnails and a refresh control. **Windows Graphics Capture acquires the picture directly from Rust**; the desktop client does not use browser screen acquisition or the browser screen picker.
-- Direct3D GPU scaling to the selected stream size before readback, with two shared frame buffers and acknowledgements to prevent an unlimited frame queue.
-- Native **WASAPI application-loopback audio**, including the selected process and its child processes. Choose the audio application independently from the picture. The live room's secondary audio controls remain available.
-- Compact mode with your own preview, the people sharing, and quick controls (including Camera). The same room and capture remain active when switching views.
-- Real fullscreen: a stream put in full screen fills the monitor instead of the area inside the app frame.
-- Camera sharing from the room’s Camera button. Camera access is granted only to the pinned website after you press the button; microphones are always refused.
-- English, Português (Brasil) and Español for the shell, selectors, tray and dialogs, following Windows automatically or the choice in Desktop preferences.
-- Per-user installation, persistent AppData storage, single-instance behavior, system tray controls, and signed GitHub updates.
+## Install on Windows
 
-Desktop notices stay visible above the room, and the collapsible sidebar owns its expand/collapse control. Capture requests borderless mode through Windows; Windows may retain its indicator when permission is denied or another app requires it.
+Download **SimpleShare_0.4.0_x64-setup.exe** from [Releases](https://github.com/gustartzofficial-dev/SimpleShare-Desktop/releases). Run it over the existing installation. Saved data stays in AppData. Setup offers WebView2 installation if needed.
 
-## Install
+Windows 11 x64 is recommended. Application audio requires Windows build 20348 or later. Pictures use Windows Graphics Capture and Direct3D; audio uses WASAPI process loopback. The app requests borderless capture, subject to Windows permission. Protected content, elevated applications, anti-cheat restrictions and games that recreate their fullscreen window can still affect capture.
 
-Download `SimpleShare_0.3.0_x64-setup.exe` from [Releases](https://github.com/gustartzofficial-dev/SimpleShare-Desktop/releases). Run the installer, then open SimpleShare from the Start menu. The installer can install the Microsoft Edge WebView2 runtime when it is missing.
+The updater signature authenticates updates inside SimpleShare. It is separate from a Windows publisher certificate; SmartScreen may still show an unsigned-publisher prompt.
 
-Windows 11 x64 is the recommended platform. Native process-loopback audio requires Windows build 20348 or newer. Protected video, anti-cheat restrictions, exclusive-fullscreen transitions, and applications running with higher privileges can affect capture. Borderless mode can help with games that recreate their rendering window.
+## Install on Linux
 
-The installer does not include a Windows publisher certificate. Windows may identify it as an unsigned publisher. Update signatures are a separate mechanism: the app verifies downloaded releases against its embedded public key.
+Target: **x64 Ubuntu 22.04+ / Debian with WebKitGTK 4.1**, PipeWire and an appropriate xdg-desktop-portal backend for your desktop. Install the portal backend for GNOME, KDE or your wlroots desktop through your distribution. The AppImage still needs the system’s working graphics, media and portal services.
 
-## Saved data and Electron migration
+**AppImage:** download the AppImage and Install-SimpleShare.sh from the same release into one folder. Mark them executable, then run the script. Alternatively run the AppImage with --install to open the branded installer. You can also run the AppImage directly without installing it.
 
-Profiles are stored in **`%APPDATA%\dev.simpleshare.desktop\`**, outside the application directory:
+The installer copies it to ~/.local/share/SimpleShare/SimpleShare.AppImage and adds an applications-menu entry and icon. XDG_DATA_HOME is respected. No root password is needed. Keep the installed file writable for signed updates. Files downloaded through a browser may need “Allow executing as program” enabled first.
 
-- `profile.json`: display name, safe room preferences (including language and the Audio switch), favorites, recent rooms, and desktop preferences.
-- `webview\`: the persistent WebView2 website profile.
+**Debian package:** install the downloaded .deb through your package manager, for example sudo apt install ./SimpleShare_0.4.0_amd64.deb. Dependencies are declared in the package. Updates use your package manager; the app links to Releases rather than trying to replace a system-owned executable with an AppImage.
 
-Keep the application identifier `dev.simpleshare.desktop` unchanged in future builds. Reinstalling or changing build folders uses the same profile. Leave the uninstaller's option to remove application data unchecked when you want to retain it. The app opens the profile folder from Desktop preferences. A malformed JSON profile is preserved as `profile-invalid-<id>.json` before a fresh profile is created.
+Linux pictures use **WebKitGTK/GStreamer and the system’s PipeWire desktop capture portal**. A pinned Rust WebRTC adapter supplies peer connections when the system webview has no native WebRTC. The system picker and its privacy prompt are intentional; Windows’ capture implementation is not used on Linux. The shell and live room are laid out in one integrated GTK window.
 
-To migrate from Electron, close the old application, open **Desktop preferences → Import old profile**, and choose the old `user-data/desktop.json`. Favorites and supported preferences, including the saved name, are imported. This does not copy browser credentials or all browser storage. Keep the old portable folder until the import has been checked, then stop using the Electron client. Electron 0.1.x cannot install Tauri updates automatically; this first installer must be installed manually.
+Application audio uses PulseAudio or pipewire-pulse plus **pulseaudio-utils**. Play sound in an application before opening the picker. Select one playback stream; microphones and the default system recording source are never used as fallbacks. If an app recreates its audio stream, select it again. Per-stream monitoring support depends on the installed audio server. The initial Linux Rust transport currently uses a screen-sharing encoder profile capped at 15 fps (up to 1080p); Windows keeps its existing capture/frame-rate path. Linux capture and desktop integration should be checked on your actual distribution before wider rollout.
 
-## Updates
+## Rooms, compact mode and saved data
 
-Automatic checks are enabled by default. The app checks the public repository at startup and periodically, downloads a signed installer while idle, verifies its signature, and applies it outside a room. In-room activity defers installation. Desktop preferences also provides manual check/install controls and an automatic-update toggle.
+Save frequent rooms in **Your places**, rename them and collapse the rail. Compact mode shows who is sharing, your preview and quick controls. Camera sharing is a separate picture without microphone access. The shell supports English, Português (Brasil) and Español.
 
-Repository: **[gustartzofficial-dev/SimpleShare-Desktop](https://github.com/gustartzofficial-dev/SimpleShare-Desktop)**.
+The application identifier remains **dev.simpleshare.desktop**. Profiles live outside the application directory:
 
-Update endpoint: `https://github.com/gustartzofficial-dev/SimpleShare-Desktop/releases/latest/download/latest.json`.
+- Windows: %APPDATA%/dev.simpleshare.desktop/
+- Linux: the XDG configuration directory, normally ~/.config/dev.simpleshare.desktop/
+- profile.json stores your name, favorites, recent rooms and preferences; webview/ holds the website profile.
 
-The repository owner must complete [UPDATER_SETUP.md](UPDATER_SETUP.md) before publishing. Every release needs the installer, its `.sig`, and `latest.json`. The private signing key must never be committed or attached to a release. Keep the original key for future versions; changing the embedded key prevents existing clients from accepting those updates.
+Reinstalling or moving build folders keeps the profile. Desktop preferences opens the saved-data folder. A malformed profile is preserved before recovery. Legacy Electron favorites and names can be imported from desktop.json using **Import old profile**; keep the old folder until you have checked the result.
 
-## Build on Windows
+## Updates and releases
 
-Install Node.js 24 LTS, stable Rust with the `x86_64-pc-windows-msvc` target, Microsoft Visual Studio C++ build tools with a Windows SDK, and WebView2. Then:
+Windows and AppImage installations check the desktop repository and verify downloads against the existing embedded public key. Installation waits until you leave a room. Never replace that key for an ordinary update. Debian installations use package updates instead.
 
-```powershell
-npm ci
-npm run check
-npm run build
-cargo test --locked --manifest-path src-tauri/Cargo.toml
-npm run tauri -- dev
-```
+See [UPDATER_SETUP.md](UPDATER_SETUP.md) for the exact release asset list and local signing. The release tag in latest.json must exactly match the published GitHub tag. Use scripts/release-manifest.mjs --tag YOUR-EXACT-TAG rather than editing URLs by hand.
 
-Create a signed installer:
+## Build and validate
 
-```powershell
-$env:TAURI_SIGNING_PRIVATE_KEY = 'C:\private\simpleshare-updater.key'
-$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ''
-npm run tauri -- build --target x86_64-pc-windows-msvc --bundles nsis --ci
-```
+Use Node.js 24 and stable Rust. On Windows, reuse a configured MSVC / Windows SDK toolchain. Configure tool locations, TEMP/TMP, npm cache, Cargo/rustup homes and build output before installing or compiling; this owner’s portable environment is in E:/SimpleShare-Major Update/desktop-tauri/scripts/env.ps1. Do not place development caches on C:.
 
-Normal build output is under `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/`. `scripts/env.ps1` supports this workspace's optional local toolchain and redirects output to `.local/target/`; it is not a prerequisite for a normal developer installation.
+Run npm ci, npm run check and npm run build after configuring the environment. Build Windows with npm run tauri -- build --target x86_64-pc-windows-msvc --bundles nsis --ci and TAURI_SIGNING_PRIVATE_KEY pointing to the original private key.
 
-The GitHub workflow in `.github/workflows/release.yml` builds and signs a **draft** release when run manually. The owner reviews and publishes it. Increase the version in `package.json`, `src-tauri/Cargo.toml`, and `src-tauri/tauri.conf.json` for each release; update the lockfiles as needed.
+The **Build Linux x64 release** workflow installs Linux dependencies, runs Rust tests, then builds AppImage and .deb with src-tauri/tauri.linux.conf.json. It uploads an artifact only and never publishes a release or needs the private signing key. After downloading the artifact on the owner’s Windows PC, use scripts/finalize-linux.ps1 to sign the AppImage and combine both platforms in latest.json.
 
-## Architecture and limits
+Native capture regression checks are in tests/runtime.mjs --capture and use an isolated profile and a Win32/WASAPI fixture. Validation results and limits belong in [VALIDATION.md](VALIDATION.md).
 
-The pinned live website receives a narrow native bridge. Native code validates the calling webview and origin. Only the local shell can manage desktop preferences, navigation, or installation. The live website cannot access arbitrary files or launch arbitrary commands. Source grants come from the local picker and are revalidated before capture.
+## Architecture and security
 
-Video acquisition and GPU scaling run in Rust through Windows Graphics Capture and Direct3D. Read-only shared memory carries bounded frames to a generated video track for the website's WebRTC transport. Audio runs in a separate Rust WASAPI helper with startup timeout, bounded packets, and parent-process lifetime handling. No whole-system audio fallback is used.
+Only trusted local webviews control desktop settings, installation and source selection. The live website receives narrow, origin-checked commands. Grants come from the native picker and are revalidated before capture. The installer command is restricted to its own local webview.
 
-**Tauri on Windows still uses WebView2, which is Chromium-based, to render the live website and run its existing WebRTC connection.** Rust replaces Electron's Node main process and the acquisition path. This is not a fully native room UI or a Rust WebRTC implementation. Lower total RAM use and better game performance are not guaranteed without measurements on the target systems.
+Windows uses WebView2 for rendering and WebRTC; Linux uses WebKitGTK/GStreamer. Rust replaces the Electron main process and supplies native integration. This is not a fully native room renderer or Rust WebRTC engine, and performance gains require measurement on actual devices.
 
-An internet connection and the existing SimpleShare backend are required. TURN, SFU, and account secrets belong on the server; none should be embedded in this application. The website/Worker sources are maintained separately and are not changed by uploading this desktop repository.
-
-## Validation and licensing
-
-See [VALIDATION.md](VALIDATION.md) for performed checks and remaining real-world checks, and [RELEASE_NOTES.md](RELEASE_NOTES.md) for this release. Source follows the original CC0 license. Third-party dependencies and the Geist font retain their licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+TURN, SFU and admin secrets belong on the server. The website and Worker are maintained separately. Ship the website 6.3.1 update with this desktop release for the corrected Audio-button placement. No Worker changes are needed for that UI update.

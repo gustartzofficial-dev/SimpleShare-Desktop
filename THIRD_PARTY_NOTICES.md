@@ -15,3 +15,7 @@ Principal components:
 - [Vite](https://github.com/vitejs/vite) and [esbuild](https://github.com/evanw/esbuild) — MIT; build tools only.
 
 Microsoft Edge WebView2 is a separately maintained Microsoft runtime under its own distribution terms. The app uses the installed shared runtime; the installer downloads Microsoft's bootstrapper if required. Electron, Node.js, Koffi, and the old loopback-capture Node addon are not included as application runtimes in this release.
+
+## Linux WebRTC transport
+
+Linux uses the MIT / Apache-2.0 licensed [tauri-plugin-webrtc](https://github.com/crabnebula-dev/tauri-plugin-webrtc) and qrtc engine from CrabNebula. The plugin revision and transitive engine sources are pinned in Cargo.lock. Default post-quantum features are disabled; ordinary WebRTC with TURN/TLS is enabled. Windows keeps its existing WebView2 WebRTC implementation. Platform-specific Rust license notices are collected into THIRD_PARTY_LICENSES.txt during that platform’s build. GTK, WebKitGTK, GStreamer and the distribution libraries retain their own licenses.
