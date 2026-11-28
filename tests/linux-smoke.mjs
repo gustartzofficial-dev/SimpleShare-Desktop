@@ -36,7 +36,7 @@ try{
  while(Date.now()<deadline){
   if(failure)throw failure;if(app.exitCode!==null)throw Error(`Linux app exited ${app.exitCode}: ${stderr}`);if(diagnostics.error)throw Error(diagnostics.error+'\n'+(diagnostics.stack||''));
   let data,probe;try{data=JSON.parse(await readFile(path.join(profile,'profile.json'),'utf8'));probe=JSON.parse(await readFile(path.join(profile,'desktop-smoke.json'),'utf8'));}catch{}
-  if(probe?.error)throw Error(probe.error);
+  if(probe?.error)throw Error(probe.error+" "+JSON.stringify({requests,diagnostics})+"\n"+stderr);
   if(data?.sitePreferences?.['simpleshare-name']==='Linux native smoke'&&data.lastRoom?.includes('abcdef1234567890abcdef12')&&probe?.compactWidth<=500){reached=true;break;}
   await new Promise(r=>setTimeout(r,250));
  }
