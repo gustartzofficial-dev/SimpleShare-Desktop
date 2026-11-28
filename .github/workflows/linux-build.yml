@@ -15,7 +15,7 @@ jobs:
       CARGO_TARGET_DIR: ${{ github.workspace }}/.local/target
       npm_config_cache: ${{ github.workspace }}/.local/npm-cache
       XDG_CACHE_HOME: ${{ github.workspace }}/.local/cache
-      TMPDIR: ${{ github.workspace }}/.local/tmp
+      TMPDIR: /tmp/simpleshare-build
       APPIMAGE_EXTRACT_AND_RUN: '1'
     steps:
       - uses: actions/checkout@v4
@@ -45,13 +45,30 @@ jobs:
           restore-keys: |
             linux-x64-${{ hashFiles('src-tauri/Cargo.lock') }}-
             linux-x64-
-      - name: Build frontend and test Linux Rust code
+      - name: Install frontend tools
+        run: npm ci && npm run check
+      - name: Check whether production build inputs changed
+        id: production
+        env:
+          CACHE_KEY: ${{ steps.rust-cache.outputs.cache-matched-key }}
         run: |
-          npm ci
-          npm run check
+          echo "reuse=false" >> "$GITHUB_OUTPUT"
+          cached="${CACHE_KEY##*-}"
+          if [[ "$cached" =~ ^[0-9a-f]{40}$ ]] && test -f "$CARGO_TARGET_DIR/x86_64-unknown-linux-gnu/release/simpleshare-desktop"; then
+            git fetch --depth=1 origin "$cached"
+            changes="$(git diff --name-only "$cached" HEAD)"
+            if ! printf '%s\n' "$changes" | grep -Ev '^(\.github/workflows/linux-build\.yml|tests/.*|[A-Z_]+\.md|\.gitignore|\.gitattributes)$' | grep -q .; then
+              echo "Production sources unchanged; reusing build from $cached"
+              echo "reuse=true" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+      - name: Build frontend and test Linux Rust code
+        if: steps.production.outputs.reuse != 'true'
+        run: |
           npm run build
           cargo test --locked --manifest-path src-tauri/Cargo.toml --target x86_64-unknown-linux-gnu
       - name: Build AppImage and Debian package
+        if: steps.production.outputs.reuse != 'true'
         # Signing stays on the owner's PC. The private updater key is never uploaded.
         run: npm run tauri -- build --ci --target x86_64-unknown-linux-gnu --config src-tauri/tauri.linux.conf.json --config '{"bundle":{"createUpdaterArtifacts":false}}'
       - name: Smoke test Linux desktop and native IPC
