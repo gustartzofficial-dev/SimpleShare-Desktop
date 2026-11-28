@@ -72,7 +72,11 @@ jobs:
         # Signing stays on the owner's PC. The private updater key is never uploaded.
         run: npm run tauri -- build --ci --target x86_64-unknown-linux-gnu --config src-tauri/tauri.linux.conf.json --config '{"bundle":{"createUpdaterArtifacts":false}}'
       - name: Smoke test Linux desktop and native IPC
-        run: xvfb-run -a dbus-run-session -- node tests/linux-smoke.mjs
+        run: |
+          ldd "$CARGO_TARGET_DIR/x86_64-unknown-linux-gnu/release/simpleshare-desktop"
+          find "$CARGO_TARGET_DIR/x86_64-unknown-linux-gnu/release" -maxdepth 2 -name '*gstreamer*' -o -name '*WebKit*'
+          env | grep -E 'GST_|LD_|WEBKIT' || true
+          LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu GST_PLUGIN_SYSTEM_PATH_1_0=/usr/lib/x86_64-linux-gnu/gstreamer-1.0 xvfb-run -a dbus-run-session -- node tests/linux-smoke.mjs
       - name: Collect Linux files
         run: |
           mkdir -p .local/linux-release
