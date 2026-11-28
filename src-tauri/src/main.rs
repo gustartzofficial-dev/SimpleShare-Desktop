@@ -1199,7 +1199,14 @@ fn main() {
     }
     let builder = tauri::Builder::default();
     #[cfg(target_os = "linux")]
-    let builder = builder.plugin(tauri_plugin_webrtc::init());
+    let builder = builder
+        // Older WebKitGTK initializes WebCodecs before GStreamer (WebKit #320327).
+        // Querying media playback first initializes its registry before the RTC
+        // adapter probes codecs. This script must precede the adapter's script.
+        .plugin(tauri::plugin::Builder::new("linux-media-init")
+            .js_init_script_on_all_frames("document.createElement('video').canPlayType('video/webm');")
+            .build())
+        .plugin(tauri_plugin_webrtc::init());
     builder
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Some(w) = app.get_window("main") {
