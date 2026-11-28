@@ -4,6 +4,7 @@ import {mkdir,readFile,access} from 'node:fs/promises';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import {chromium} from '@playwright/test';
+import {liveSfuBridge} from './linux-sfu.mjs';
 assert.equal(process.platform,'linux');
 const profile=path.resolve(process.env.SIMPLESHARE_LINUX_TEST_PROFILE||'.local/qa/linux-smoke'),executable=process.env.SIMPLESHARE_LINUX_TEST_EXECUTABLE||path.join(process.env.CARGO_TARGET_DIR||'.local/target','x86_64-unknown-linux-gnu/release/simpleshare-desktop');
 await mkdir(profile,{recursive:true});
@@ -14,9 +15,13 @@ const peer=await browser.newPage();let diagnostics={},requests=0,stderr='',app;
 function stopOwnedGroup(signal){if(app?.pid)try{process.kill(-app.pid,signal);}catch(error){if(error.code!=='ESRCH')throw error;}}
 process.on('exit',()=>stopOwnedGroup('SIGKILL'));
 const watchdog=setTimeout(()=>{console.error('Linux smoke watchdog expired',JSON.stringify({requests,diagnostics}),stderr);process.exit(1);},120000);watchdog.unref();
-const fixture=await readFile('tests/linux-fixture.html','utf8');
+const useSfu=process.env.SIMPLESHARE_TEST_LIVE_SFU==='1',sfu=useSfu?liveSfuBridge(browser):null;
+const fixture=(await readFile('tests/linux-fixture.html','utf8')).replace('__SS_LIVE_SFU__',JSON.stringify(useSfu));
 const server=createServer(async(request,response)=>{
  try{
+  if(request.url==='/ice.js'){response.setHeader('Content-Type','application/javascript');response.end(await readFile('tests/ice-gather.js','utf8'));return;}
+  if(request.url==='/sfu-offer'){response.setHeader('Content-Type','application/json');response.end(JSON.stringify(await sfu.offer()));return;}
+  if(request.url==='/sfu-answer'){let body='';for await(const chunk of request)body+=chunk;response.setHeader('Content-Type','application/json');response.end(JSON.stringify(await sfu.answer(JSON.parse(body))));return;}
   if(request.url==='/probe'||request.url==='/offer'){
    let body='';for await(const chunk of request)body+=chunk;const value=JSON.parse(body);
    if(request.url==='/probe'){diagnostics=value;response.end('ok');return;}
@@ -45,9 +50,10 @@ try{
  }
  assert(reached,'Linux bridge/profile/compact check failed: '+JSON.stringify({requests,diagnostics})+'\n'+stderr);
  let frames=0;const mediaDeadline=Date.now()+25000;while(!frames&&Date.now()<mediaDeadline){frames=await peer.evaluate(async()=>[...(await receiver.getStats()).values()].find(s=>s.type==='inbound-rtp'&&s.kind==='video')?.framesDecoded||0);await new Promise(r=>setTimeout(r,100));}assert(frames>0,'Browser must decode video from the Linux Rust transport: '+JSON.stringify(diagnostics)+' '+JSON.stringify(await peer.evaluate(async()=>[...(await receiver.getStats()).values()])));
+ if(useSfu)assert(diagnostics.sfu&&diagnostics.visibleVideo,'Live SFU playback must be visible');
  console.log('PASS: Linux/browser bidirectional video, data channel, native IPC, persistent profile and compact window.',JSON.stringify({browserFrames:frames,...diagnostics}));
 }finally{
  if(app){stopOwnedGroup('SIGTERM');await Promise.race([new Promise(r=>app.once('exit',r)),new Promise(r=>setTimeout(r,3000))]);stopOwnedGroup('SIGKILL');}
- server.closeAllConnections();server.close();
+ await sfu?.close();server.closeAllConnections();server.close();
  await Promise.race([browser.close(),new Promise((_,reject)=>setTimeout(()=>reject(Error('Browser peer cleanup timed out')),10000).unref())]);clearTimeout(watchdog);
 }

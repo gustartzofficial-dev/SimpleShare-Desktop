@@ -1,18 +1,30 @@
-<!doctype html><html><body><input id="myName"><div id="people"></div><button id="shareBtn">Share</button><button id="stopBtn" hidden>Stop</button><canvas id="picture" width="320" height="180"></canvas><script>
+<!doctype html><html><body><input id="myName"><div id="people"></div><button id="shareBtn">Share</button><button id="stopBtn" hidden>Stop</button><canvas id="picture" width="320" height="180"></canvas><script type="module">
+import {completeLocalDescription} from "/ice.js";
 (async()=>{
  const report=value=>fetch('/probe',{method:'POST',body:JSON.stringify(value)});let warnings=[];const warn=console.warn;console.warn=(...args)=>{warnings.push(args.map(String).join(' '));warnings=warnings.slice(-6);warn(...args);};
  try{
-  const capabilities={rtc:typeof RTCPeerConnection,audio:typeof AudioContext,encoder:typeof VideoEncoder,display:typeof navigator.mediaDevices?.getDisplayMedia,native:typeof window.__simpleShareNative};await report(capabilities);
+  let sfuProof={};const capabilities={rtc:typeof RTCPeerConnection,audio:typeof AudioContext,encoder:typeof VideoEncoder,display:typeof navigator.mediaDevices?.getDisplayMedia,native:typeof window.__simpleShareNative};await report(capabilities);
   if(capabilities.rtc!=='function'||capabilities.audio!=='function'||capabilities.encoder!=='function')throw Error('Required Linux media APIs are unavailable: '+JSON.stringify(capabilities));
   const a=new RTCPeerConnection({iceServers:[]});let received=false;const channel=a.createDataChannel('qa');channel.onmessage=e=>received=e.data==='SimpleShare Linux';channel.onopen=()=>channel.send('SimpleShare Linux');
   const canvas=document.getElementById('picture'),paint=canvas.getContext('2d');let n=0;const timer=setInterval(()=>{paint.fillStyle=n++%2?'#f29a78':'#172015';paint.fillRect(0,0,320,180);},100);const stream=canvas.captureStream(10);stream.getVideoTracks()[0].contentHint='detail';a.addTrack(stream.getVideoTracks()[0],stream);
   const video=document.createElement('video');video.autoplay=true;video.muted=true;document.body.append(video);a.ontrack=e=>{video.srcObject=e.streams[0]||new MediaStream([e.track]);video.play().catch(()=>{});};
-  await report({...capabilities,step:'createOffer'});await a.setLocalDescription(await a.createOffer());await report({...capabilities,step:'gather'});const gather=Date.now()+7000;while(a.iceGatheringState!=='complete'&&Date.now()<gather)await new Promise(r=>setTimeout(r,50));
-  await report({...capabilities,step:'answer'});const response=await fetch('/offer',{method:'POST',body:JSON.stringify(a.localDescription)});const answer=await response.json();if(!response.ok)throw Error(JSON.stringify(answer));await a.setRemoteDescription(answer);await report({...capabilities,step:'media'});
+  await report({...capabilities,step:'createOffer'});const prepared=await completeLocalDescription(a,await a.createOffer());await report({...capabilities,step:'gather'});const gather=Date.now()+7000;while(a.iceGatheringState!=='complete'&&Date.now()<gather)await new Promise(r=>setTimeout(r,50));
+  await report({...capabilities,step:'answer'});const response=await fetch('/offer',{method:'POST',body:JSON.stringify(prepared)});const answer=await response.json();if(!response.ok)throw Error(JSON.stringify(answer));await a.setRemoteDescription(answer);await report({...capabilities,step:'media'});
   const deadline=Date.now()+25000;let decoded=0;while(Date.now()<deadline&&(!received||!decoded)){decoded=[...(await a.getStats()).values()].find(s=>s.type==='inbound-rtp'&&s.kind==='video')?.framesDecoded||0;await new Promise(r=>setTimeout(r,100));}
   if(!received||!decoded)throw Error('Linux/browser media interop failed: '+JSON.stringify({received,decoded,state:a.connectionState}));
-  await report({...capabilities,dataChannel:true,videoFrames:decoded});history.replaceState(null,'','?room=abcdef1234567890abcdef12');document.body.dataset.room='connected';window.__simpleShareNative.savePreference('simpleshare-name','Linux native smoke');
-  setInterval(async()=>report({...capabilities,dataChannel:received,stats:[...(await a.getStats()).values()].filter(s=>s.type==='outbound-rtp'||s.type==='inbound-rtp'),warnings,videos:[...document.querySelectorAll('#__tauri_webrtc_media video')].map(v=>({width:v.videoWidth,height:v.videoHeight,time:v.currentTime,paused:v.paused,ready:v.readyState}))}),2000);window.qaConnection=a;window.qaStream=stream;window.qaTimer=timer; // Keep both directions alive until the host verifies browser decoding.
+  if(__SS_LIVE_SFU__){
+    const response=await fetch('/sfu-offer');const session=await response.json();if(!response.ok)throw Error(JSON.stringify(session));
+    const receiver=new RTCPeerConnection({iceServers:session.iceServers,bundlePolicy:'max-bundle'}),picture=document.createElement('video');picture.autoplay=true;picture.muted=true;document.body.append(picture);
+    receiver.ontrack=e=>{picture.srcObject=e.streams[0]||new MediaStream([e.track]);picture.play().catch(()=>{});};
+    await receiver.setRemoteDescription(session.description);const answer=await completeLocalDescription(receiver,await receiver.createAnswer());
+    const accepted=await fetch('/sfu-answer',{method:'POST',body:JSON.stringify(answer)});if(!accepted.ok)throw Error('SFU rejected the gathered Linux answer');
+    let visible=false,frames=0;const deadline=Date.now()+25000,probe=document.createElement('canvas');probe.width=320;probe.height=180;const ctx=probe.getContext('2d');
+    while(Date.now()<deadline&&!visible){frames=[...(await receiver.getStats()).values()].find(x=>x.type==='inbound-rtp'&&x.kind==='video')?.framesDecoded||0;if(picture.readyState>=2&&picture.videoWidth>=320&&picture.videoHeight>=180){ctx.drawImage(picture,0,0,320,180);const pixel=ctx.getImageData(160,90,1,1).data;visible=frames>0&&pixel[0]+pixel[1]+pixel[2]>30;}await new Promise(r=>setTimeout(r,100));}
+    if(!visible)throw Error('Live SFU video did not become visible: '+JSON.stringify({state:receiver.connectionState,ice:receiver.iceConnectionState,frames,width:picture.videoWidth,height:picture.videoHeight}));
+    sfuProof={sfu:true,visibleVideo:true,sfuFrames:frames};window.sfuReceiver=receiver;
+  }
+  await report({...capabilities,...sfuProof,dataChannel:true,videoFrames:decoded});history.replaceState(null,'','?room=abcdef1234567890abcdef12');document.body.dataset.room='connected';window.__simpleShareNative.savePreference('simpleshare-name','Linux native smoke');
+  setInterval(async()=>report({...capabilities,...sfuProof,dataChannel:received,stats:[...(await a.getStats()).values()].filter(s=>s.type==='outbound-rtp'||s.type==='inbound-rtp'),warnings,videos:[...document.querySelectorAll('#__tauri_webrtc_media video')].map(v=>({width:v.videoWidth,height:v.videoHeight,time:v.currentTime,paused:v.paused,ready:v.readyState}))}),2000);window.qaConnection=a;window.qaStream=stream;window.qaTimer=timer; // Keep both directions alive until the host verifies browser decoding.
  }catch(error){await report({error:String(error),stack:error.stack});}
 })();
 </script></body></html>
