@@ -1,46 +1,31 @@
-# v0.3.1 sidebar hotfix validation
+# Desktop 0.4.0 validation — 2026-11-28
 
-- Signed Windows x64 NSIS installer built successfully with the original updater key.
-- Installer signature verification passed; modifying the installer was correctly rejected.
-- JavaScript syntax checks passed (`npm run check`).
-- Rendered checks passed for English, Português (Brasil), and Español, in both expanded and collapsed states.
-- Collapsed button is 44 × 44 pixels with a centered plus; its translated label is hidden, while its translated accessible name and tooltip remain. Expanded labels remain visible.
-- This hotfix changes sidebar presentation only; native capture and room connection behavior were not retested.
+## Windows: passed
 
-# Validation — SimpleShare Desktop 0.3.0
+- Windows x64 MSVC release build and branded NSIS packaging completed. Installer size: 3,947,122 bytes.
+- Seven profile, localization and local-origin unit tests passed.
+- Original-key updater verification passed and rejected a modified installer.
+- Native Win32/WASAPI fixture passed source previews, application audio (RMS 0.021), and silence checks.
+- Extra audio used the application-only picker, returned no video track, and left the main video/audio alive.
+- Real WebRTC video continued across compact mode, tray hiding, window resizing and minimize/restore.
+- Stop after app restart released both capture tracks and capture locks. Saved name/rooms persisted. Remote shell access was rejected.
 
-Built on Linux, 2026-11-23, by cross-compiling for Windows x64 (`x86_64-pc-windows-gnu`, Rust 1.97.1 with the standard library built from source, MinGW-w64 linker) and packaging with the Tauri CLI 2.12.4 NSIS bundler and NSIS 3.09. The Rust code type-checks for Windows with no warnings. The frontend bridge and local pages build with Vite/esbuild. The installer bundles `WebView2Loader.dll`, which the GNU build loads dynamically; the official MSVC build links it statically instead.
+## Website: passed
 
-The new website features used inside the app (camera, Audio switch, translations, saved rooms hidden in the app) were exercised in Chrome against the 6.3.0 website build; see the website VALIDATION.md.
+- ESLint, 102 unit tests and production build.
+- Chromium and Firefox source add/replace/cancel/remove checks, stable outgoing track and responsive panel.
+- WebKit phone check confirms listening controls remain when source capture is unavailable.
 
-## Not verified in this build
+## Linux: passed
 
-This environment has no Windows or WebView2, so the installer and app were not launched. Before publishing, install on Windows 10/11 and check: putting a stream in full screen fills the monitor and Esc restores the window (maximized and normal); compact mode from fullscreen; the Camera button (first use, a second camera, unplugging); language changes from Desktop preferences and from the room footer/settings, including the tray menu; native screen capture and application audio still work as in 0.2.1.
+- Ten Linux Rust tests passed, including application-audio parsing, installer replacement without profile loss, symbolic-link protection, saved preferences and local-origin checks.
+- Ubuntu 22.04 x64 AppImage and Debian packaging completed.
+- Both the native executable and the packaged AppImage passed real bidirectional video and a data-channel exchange with a browser peer. The browser decoded 5 and 10 Linux frames respectively; Linux decoded the browser video in both runs.
+- Native preference IPC, persisted name/room and a compact window below 500px passed for both package paths.
+- The pinned Rust RTC adapter supplies the missing peer API. Linux startup initializes media before WebCodecs probes and schedules the adapter's hidden encoder video independently of WebKit presentation callbacks.
+- Final artifact workflow: https://github.com/gustartzofficial-dev/SimpleShare-Desktop/actions/runs/46102946982
+- AppImage signing and local updater verification use the existing key. See the shipped signatures and INSTALLER_SHA256SUMS.txt.
 
-The installer is not code-signed, and it is not signed with the updater key: install it manually, or rebuild with the original key to publish an update for existing installations (UPDATER_SETUP.md).
+## Limits
 
-## Previous release validation
-
-# Validation — SimpleShare Desktop 0.2.1
-
-Validation uses isolated E: test profiles and the existing portable E: Rust/MSVC toolchain. npm, Cargo, rustup, temporary files, browser profiles, and build outputs are configured on E:. No production room or Cloudflare quota is used for the native tests.
-
-## Completed checks
-
-The debug and optimized release runtime suites passed, including native thumbnail refresh, centered collapsed controls, notice dismissal across compact mode, video/audio and WebRTC regression checks, and persistence across restart. Windows returned `AppCapabilityAccessStatus::Allowed` for borderless capture in the isolated test. Five Rust unit tests passed. The final signed installer also passed signature verification and rejection of a modified payload.
-
-## Checks
-
-The runtime suite verifies the sidebar-owned collapse control, centered collapsed new-room button, notification visibility inside the room view, and native 320 × 180 source thumbnails. It also exercises video/audio capture, local WebRTC delivery, compact/tray continuity, source resize and minimize/restore, persistence across restart, and stopping concurrent native captures.
-
-Rust unit tests cover room URL validation, safe saved settings, profile persistence/recovery, and Electron-profile import. The signed installer is checked separately against the embedded public key, including rejection of a modified payload.
-
-Thumbnails are snapshots captured in memory through Windows Graphics Capture and GPU scaling. Visible source cards load lazily, one preview at a time. Refresh requests new snapshots; protected, minimized, or inactive sources can report that a preview is unavailable.
-
-## Platform limits
-
-Border suppression uses Windows' supported borderless capture access request and `IsBorderRequired = false`. Windows retains control of the permission and may show its indicator if consent is denied or another capture application requires a border. This update does not bypass system privacy controls.
-
-The installer is built locally; clean-machine installation/uninstallation is not performed in this development session. Long gaming sessions, protected content, HDR, multiple GPU adapters, and production multi-user networking still need broader testing. Tauri still uses WebView2 for the room UI and WebRTC transport.
-
-Source upload and changed-only packages exclude private signing keys, development tools, dependency directories, build outputs, and test profiles. The update baseline is the delivered v0.2.0 source snapshot.
+Physical PipeWire portal selection, Wayland compositors and real application-audio servers need distribution/device checks. The initial Linux adapter caps screen encoding at 15 fps; it is a preview, not measured parity with the Windows capture path. Protected games, elevated apps and fullscreen-window replacement remain platform-dependent. No claim of lower RAM use or universal connection reliability is made.

@@ -9,7 +9,7 @@ The app opens the [live SimpleShare website](https://simple-share-hazel.vercel.a
 - The room’s **Audio** action opens extra sources and mix controls with website 6.3.1. It no longer immediately toggles outgoing audio.
 - Extra desktop audio uses an **audio-only application picker**. Adding it does not allocate another video capture or replace the outgoing mixed track.
 - Windows setup has SimpleShare artwork, its own icon, and English / Português (Brasil) / Español installer translations.
-- Linux has x64 AppImage and Debian packaging. The AppImage includes a branded, per-user installation screen.
+- Linux preview has x64 AppImage and Debian packaging. The AppImage includes a branded, per-user installation screen.
 - The collapsed sidebar still shows only its centered plus, with a translated tooltip and accessible name.
 
 ## Install on Windows
@@ -30,9 +30,9 @@ The installer copies it to ~/.local/share/SimpleShare/SimpleShare.AppImage and a
 
 **Debian package:** install the downloaded .deb through your package manager, for example sudo apt install ./SimpleShare_0.4.0_amd64.deb. Dependencies are declared in the package. Updates use your package manager; the app links to Releases rather than trying to replace a system-owned executable with an AppImage.
 
-Linux pictures use **WebKitGTK/GStreamer and the system’s PipeWire desktop capture portal**. The system picker and its privacy prompt are intentional; Windows’ capture implementation is not used on Linux. The shell and live room are laid out in one integrated GTK window.
+Linux pictures use **WebKitGTK/GStreamer and the system’s PipeWire desktop capture portal**. A pinned Rust WebRTC adapter supplies peer connections when the system webview has no native WebRTC. The system picker and its privacy prompt are intentional; Windows’ capture implementation is not used on Linux. The shell and live room are laid out in one integrated GTK window.
 
-Application audio uses PulseAudio or pipewire-pulse plus **pulseaudio-utils**. Play sound in an application before opening the picker. Select one playback stream; microphones and the default system recording source are never used as fallbacks. If an app recreates its audio stream, select it again. Per-stream monitoring support depends on the installed audio server. Linux capture and desktop integration should be checked on your actual distribution before wider rollout.
+Application audio uses PulseAudio or pipewire-pulse plus **pulseaudio-utils**. Play sound in an application before opening the picker. Select one playback stream; microphones and the default system recording source are never used as fallbacks. If an app recreates its audio stream, select it again. Per-stream monitoring support depends on the installed audio server. The initial Linux Rust transport currently uses a screen-sharing encoder profile capped at 15 fps (up to 1080p); Windows keeps its existing capture/frame-rate path. Linux capture and desktop integration should be checked on your actual distribution before wider rollout.
 
 ## Rooms, compact mode and saved data
 
@@ -66,6 +66,6 @@ Native capture regression checks are in tests/runtime.mjs --capture and use an i
 
 Only trusted local webviews control desktop settings, installation and source selection. The live website receives narrow, origin-checked commands. Grants come from the native picker and are revalidated before capture. The installer command is restricted to its own local webview.
 
-Windows uses WebView2 for rendering and WebRTC; Linux uses WebKitGTK/GStreamer. Rust replaces the Electron main process and supplies native integration. This is not a fully native room renderer or Rust WebRTC engine, and performance gains require measurement on actual devices.
+Windows uses WebView2 for rendering and WebRTC. Linux uses WebKitGTK/GStreamer for rendering and codecs, plus a pinned Rust WebRTC adapter for peer transport. Rust supplies desktop integration on both platforms; the room interface comes from the live website. Performance gains require measurement on actual devices.
 
 TURN, SFU and admin secrets belong on the server. The website and Worker are maintained separately. Ship the website 6.3.1 update with this desktop release for the corrected Audio-button placement. No Worker changes are needed for that UI update.
