@@ -5,7 +5,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import {chromium} from '@playwright/test';
 assert.equal(process.platform,'linux');
-const profile=path.resolve('.local/qa/linux-smoke'),executable=path.join(process.env.CARGO_TARGET_DIR||'.local/target','x86_64-unknown-linux-gnu/release/simpleshare-desktop');
+const profile=path.resolve(process.env.SIMPLESHARE_LINUX_TEST_PROFILE||'.local/qa/linux-smoke'),executable=process.env.SIMPLESHARE_LINUX_TEST_EXECUTABLE||path.join(process.env.CARGO_TARGET_DIR||'.local/target','x86_64-unknown-linux-gnu/release/simpleshare-desktop');
 await mkdir(profile,{recursive:true});
 let chromePath;for(const p of [process.env.CHROMIUM,'/usr/bin/google-chrome','/usr/bin/chromium'].filter(Boolean))try{await access(p);chromePath=p;break;}catch{}
 assert(chromePath,'A Chromium test peer is required for Linux/browser media interop');
@@ -41,7 +41,7 @@ try{
   await new Promise(r=>setTimeout(r,250));
  }
  assert(reached,'Linux bridge/profile/compact check failed: '+JSON.stringify({requests,diagnostics})+'\n'+stderr);
- const frames=await peer.evaluate(async()=>[...(await receiver.getStats()).values()].find(s=>s.type==='inbound-rtp'&&s.kind==='video')?.framesDecoded||0);assert(frames>0,'Browser must decode video from the Linux Rust transport');
+ let frames=0;const mediaDeadline=Date.now()+25000;while(!frames&&Date.now()<mediaDeadline){frames=await peer.evaluate(async()=>[...(await receiver.getStats()).values()].find(s=>s.type==='inbound-rtp'&&s.kind==='video')?.framesDecoded||0);await new Promise(r=>setTimeout(r,100));}assert(frames>0,'Browser must decode video from the Linux Rust transport: '+JSON.stringify(diagnostics)+' '+JSON.stringify(await peer.evaluate(async()=>[...(await receiver.getStats()).values()])));
  console.log('PASS: Linux/browser bidirectional video, data channel, native IPC, persistent profile and compact window.',JSON.stringify({browserFrames:frames,...diagnostics}));
 }finally{
  if(app){app.kill('SIGTERM');await Promise.race([new Promise(r=>app.once('exit',r)),new Promise(r=>setTimeout(r,3000))]);if(app.exitCode===null)app.kill('SIGKILL');}

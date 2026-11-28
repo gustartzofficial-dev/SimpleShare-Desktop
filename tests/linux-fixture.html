@@ -12,7 +12,7 @@
   const deadline=Date.now()+25000;let decoded=0;while(Date.now()<deadline&&(!received||!decoded)){decoded=[...(await a.getStats()).values()].find(s=>s.type==='inbound-rtp'&&s.kind==='video')?.framesDecoded||0;await new Promise(r=>setTimeout(r,100));}
   if(!received||!decoded)throw Error('Linux/browser media interop failed: '+JSON.stringify({received,decoded,state:a.connectionState}));
   await report({...capabilities,dataChannel:true,videoFrames:decoded});history.replaceState(null,'','?room=abcdef1234567890abcdef12');window.__simpleShareNative.savePreference('simpleshare-name','Linux native smoke');
-  clearInterval(timer);a.close();stream.getTracks().forEach(t=>t.stop());
+  window.qaConnection=a;window.qaStream=stream;window.qaTimer=timer; // Keep both directions alive until the host verifies browser decoding.
  }catch(error){await report({error:String(error),stack:error.stack});}
 })();
 </script></body></html>
