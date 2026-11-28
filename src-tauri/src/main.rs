@@ -1203,7 +1203,7 @@ fn main() {
         // Older WebKitGTK initializes WebCodecs before GStreamer (WebKit #320327).
         // Querying media playback first initializes its registry before the RTC
         // adapter probes codecs. This script must precede the adapter's script.
-        .plugin(tauri::plugin::Builder::new("linux-media-init")
+        .plugin(tauri::plugin::Builder::<tauri::Wry, ()>::new("linux-media-init")
             .js_init_script_on_all_frames("document.createElement('video').canPlayType('video/webm');")
             .build())
         .plugin(tauri_plugin_webrtc::init());
