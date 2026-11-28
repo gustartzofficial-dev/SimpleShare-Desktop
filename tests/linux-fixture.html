@@ -1,0 +1,21 @@
+<!doctype html><html><body><input id="myName"><div id="people"></div><button id="shareBtn">Share</button><button id="stopBtn" hidden>Stop</button><canvas id="picture" width="320" height="180"></canvas><script>
+(async()=>{
+ const report=value=>fetch('/probe',{method:'POST',body:JSON.stringify(value)});
+ try{
+  const capabilities={rtc:typeof RTCPeerConnection,audio:typeof AudioContext,display:typeof navigator.mediaDevices?.getDisplayMedia,native:typeof window.__simpleShareNative};await report(capabilities);
+  if(capabilities.rtc!=='function'||capabilities.audio!=='function'||capabilities.display!=='function')throw Error('Required Linux media APIs are unavailable');
+  const a=new RTCPeerConnection({iceServers:[]}),b=new RTCPeerConnection({iceServers:[]});
+  a.onicecandidate=e=>e.candidate&&b.addIceCandidate(e.candidate).catch(()=>{});b.onicecandidate=e=>e.candidate&&a.addIceCandidate(e.candidate).catch(()=>{});
+  let received=false;const channel=a.createDataChannel('qa');b.ondatachannel=e=>e.channel.onmessage=event=>{received=event.data==='SimpleShare Linux';};channel.onopen=()=>channel.send('SimpleShare Linux');
+  const canvas=document.getElementById('picture'),paint=canvas.getContext('2d');let frame=0;const timer=setInterval(()=>{paint.fillStyle=frame++%2?'#f29a78':'#172015';paint.fillRect(0,0,320,180);},100);
+  const stream=canvas.captureStream(10);a.addTrack(stream.getVideoTracks()[0],stream);
+  let remote;const video=document.createElement('video');video.autoplay=true;video.muted=true;document.body.append(video);b.ontrack=event=>{remote=event.track;video.srcObject=event.streams[0]||new MediaStream([event.track]);video.play().catch(()=>{});};
+  await a.setLocalDescription(await a.createOffer());await b.setRemoteDescription(a.localDescription);await b.setLocalDescription(await b.createAnswer());await a.setRemoteDescription(b.localDescription);
+  const deadline=Date.now()+20000;while(Date.now()<deadline&&(!received||video.videoWidth===0)){await new Promise(resolve=>setTimeout(resolve,100));}
+  if(!received)throw Error('Linux Rust WebRTC data channel did not connect');if(video.videoWidth===0||remote?.readyState!=='live')throw Error('Linux Rust WebRTC video did not decode');
+  await report({...capabilities,dataChannel:true,videoWidth:video.videoWidth});
+  history.replaceState(null,'','?room=abcdef1234567890abcdef12');window.__simpleShareNative.savePreference('simpleshare-name','Linux native smoke');
+  clearInterval(timer);a.close();b.close();stream.getTracks().forEach(track=>track.stop());
+ }catch(error){await report({error:String(error),stack:error.stack});}
+})();
+</script></body></html>

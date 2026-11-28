@@ -126,7 +126,7 @@ pub fn smoke_probe(app: &tauri::AppHandle) {
     let app = app.clone();
     std::thread::spawn(move || {
         let result = (|| -> Result<f64, String> {
-            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(25);
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(45);
             loop {
                 let ready = {
                     let state = app.state::<crate::AppState>();

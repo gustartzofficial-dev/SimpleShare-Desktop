@@ -1197,7 +1197,10 @@ fn main() {
     if args.iter().any(|arg| arg == "--qa") {
         context.config_mut().identifier.push_str(".qa");
     }
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(target_os = "linux")]
+    let builder = builder.plugin(tauri_plugin_webrtc::init());
+    builder
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
             if let Some(w) = app.get_window("main") {
                 let _ = w.show();

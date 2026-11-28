@@ -25,6 +25,7 @@ windows-capture = "2.0.1"
 webview2-com = "0.39.1"
 windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Globalization", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_System_Com", "Win32_System_Power", "Win32_System_Console", "Win32_Graphics_Dwm", "Win32_Graphics_Direct3D_Fxc", "Win32_Graphics_Direct3D11", "Security_Authorization_AppCapabilityAccess"] }
 [target.'cfg(target_os = "linux")'.dependencies]
+tauri-plugin-webrtc = { git = "https://github.com/crabnebula-dev/tauri-plugin-webrtc", rev = "5edeaa7863e0f7a8bbc8ac18cdc080a80470bb11", default-features = false, features = ["turn-tls-ring"] }
 webkit2gtk = { version = "2.0.2", features = ["v2_40"] }
 webkit2gtk-sys = { version = "2.0.2", features = ["v2_40"] }
 gtk = "0.18"
